@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\lib\imgui;C:\lib\glm-1.0.2;C:\lib\GLAD\include;C:\lib\GLFW\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5;C:\Users\dawid.DAWCZA67\Documents\Libraries C++\glm-1.0.2;C:\Users\dawid.DAWCZA67\Documents\Libraries C++\glfw-3.4.bin.WIN64\glfw-3.4.bin.WIN64\include;C:\Users\dawid.DAWCZA67\Documents\Libraries C++\glad\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\lib\glm-1.0.2;C:\lib\GLAD\include;C:\lib\GLFW\include;$(IncludePath)</IncludePath>
@@ -111,11 +111,12 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>F:\projects\VoxelEngine\VoxelEngine;C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\lib\GLFW\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\dawid.DAWCZA67\Documents\Libraries C++\glfw-3.4.bin.WIN64\glfw-3.4.bin.WIN64\lib-vc2022;C:\lib\GLFW\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -137,29 +138,40 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="C:\lib\GLAD\src\glad.c" />
-    <ClCompile Include="C:\lib\imgui\imgui.cpp" />
-    <ClCompile Include="C:\lib\imgui\imgui_demo.cpp" />
-    <ClCompile Include="C:\lib\imgui\imgui_draw.cpp" />
-    <ClCompile Include="C:\lib\imgui\imgui_impl_glfw.cpp" />
-    <ClCompile Include="C:\lib\imgui\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="C:\lib\imgui\imgui_tables.cpp" />
-    <ClCompile Include="C:\lib\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Documents\Libraries C++\glad\src\glad.c" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl2.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_demo.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_draw.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_tables.cpp" />
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_widgets.cpp" />
+    <ClCompile Include="EBO.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="ShaderClass.cpp" />
+    <ClCompile Include="VAO.cpp" />
+    <ClCompile Include="VBO.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="shader.vert" />
+    <None Include="default.frag" />
+    <None Include="default.vert" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\lib\imgui\imconfig.h" />
-    <ClInclude Include="C:\lib\imgui\imgui.h" />
-    <ClInclude Include="C:\lib\imgui\imgui_impl_glfw.h" />
-    <ClInclude Include="C:\lib\imgui\imgui_impl_opengl3.h" />
-    <ClInclude Include="C:\lib\imgui\imgui_impl_opengl3_loader.h" />
-    <ClInclude Include="C:\lib\imgui\imgui_internal.h" />
-    <ClInclude Include="C:\lib\imgui\imstb_rectpack.h" />
-    <ClInclude Include="C:\lib\imgui\imstb_textedit.h" />
-    <ClInclude Include="C:\lib\imgui\imstb_truetype.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_glfw.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl2.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl3.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imconfig.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_internal.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imstb_rectpack.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imstb_textedit.h" />
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imstb_truetype.h" />
+    <ClInclude Include="EBO.h" />
+    <ClInclude Include="ShaderClass.h" />
+    <ClInclude Include="VAO.h" />
+    <ClInclude Include="VBO.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

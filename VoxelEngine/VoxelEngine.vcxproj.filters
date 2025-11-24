@@ -19,68 +19,104 @@
     <Filter Include="Header Files\imgui">
       <UniqueIdentifier>{c9b98718-60c7-4f14-a254-b40a0a1bee64}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\Shaders">
+      <UniqueIdentifier>{6a1138f9-0a73-4a70-8d5a-14c7fa4e516d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="C:\lib\GLAD\src\glad.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui_tables.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Documents\Libraries C++\glad\src\glad.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui_widgets.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_demo.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui_impl_glfw.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_draw.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_tables.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui_demo.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_widgets.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui_draw.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl3.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="C:\lib\imgui\imgui_impl_opengl3.cpp">
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl2.cpp">
       <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_glfw.cpp">
+      <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderClass.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VBO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VAO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EBO.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shader.vert">
-      <Filter>Source Files</Filter>
+    <None Include="default.vert">
+      <Filter>Resource Files\Shaders</Filter>
+    </None>
+    <None Include="default.frag">
+      <Filter>Resource Files\Shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\lib\imgui\imconfig.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imconfig.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imgui.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imgui_impl_glfw.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imgui_internal.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imgui_internal.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imstb_rectpack.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imstb_rectpack.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imstb_textedit.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imstb_textedit.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\imstb_truetype.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imstb_truetype.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl3.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imgui_impl_opengl3_loader.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl3_loader.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="C:\lib\imgui\imgui_impl_opengl3.h">
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_opengl2.h">
       <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\dawid.DAWCZA67\Downloads\imgui-1.92.5\imgui-1.92.5\backends\imgui_impl_glfw.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderClass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VBO.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VAO.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EBO.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

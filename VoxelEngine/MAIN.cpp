@@ -1,6 +1,10 @@
 #include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
+#include "ShaderClass.h"
+#include "VAO.h"
+#include "VBO.h"
+#include "EBO.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -12,26 +16,17 @@ void processInput(GLFWwindow* window);
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
 
-const char* vertexShaderSource = "#version 460 core\n"
-"layout (location = 0) in vec3 aPos;\n"
-"void main()\n"
-"{\n"
-"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-"}\0";
-
-const char* fragmentShaderSource1 = "#version 460 core\n"
-"out vec4 FragColor;\n"
-"void main()\n"
-"{\n"
-"	FragColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);\n"
-"}\0";
-
-const char* fragmentShaderSource2 = "#version 460 core\n"
-"out vec4 FragColor;\n"
-"void main()\n"
-"{\n"
-"	FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);\n"
-"}\0";
+float vertices[] = {
+	-0.8f, -0.8f, 0.0f,
+	-0.4f, 0.8f, 0.0f,
+	0.0f, -0.8f, 0.0f,
+	0.4f, 0.8f, 0.0f,
+	0.8f, -0.8f, 0.0f
+};
+unsigned int indices[] = {  // note that we start from 0!
+	0, 1, 2,   // first triangle
+	2, 3, 4,    // second triangle
+};
 
 int main() {
 	glfwInit();
@@ -47,85 +42,30 @@ int main() {
 	}
 	glfwMakeContextCurrent(window);
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-		std::cout << "Failed to initialize GLAD (BRUH?)" << std::endl;
-		return -1;
-	}
+	gladLoadGL();
 
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-	float vertices[] = {
-		-0.8f, -0.8f, 0.0f,
-		-0.4f, 0.8f, 0.0f,
-		0.0f, -0.8f, 0.0f,
-		0.4f, 0.8f, 0.0f,
-		0.8f, -0.8f, 0.0f
-	};
-	unsigned int indices[] = {  // note that we start from 0!
-		0, 1, 2,   // first triangle
-		2, 3, 4,    // second triangle
-	};
+	Shader shaderProgram("default.vert", "default.frag");
 
-	// vertex array object for making vertex attribute calls easier
-	uint32_t VAO;
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-	glBindVertexArray(VAO);
+	VAO VAO1;
+	VAO1.Bind();
 
-	// vertex buffer object for shoving heaps of data into the gpu at once
-	uint32_t VBO;
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	// Generates Vertex Buffer Object and links it to vertices
+	VBO VBO1(vertices, sizeof(vertices));
+	// Generates Element Buffer Object and links it to indices
+	EBO EBO1(indices, sizeof(indices));
 
-	unsigned int EBO;
-	glGenBuffers(1, &EBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	// Links VBO attributes such as coordinates and colors to VAO
+	VAO1.LinkAttrib(VBO1, 0, 3, GL_FLOAT, 3 * sizeof(float), (void*)0);
+	VAO1.LinkAttrib(VBO1, 1, 3, GL_FLOAT, 3 * sizeof(float), (void*)(3 * sizeof(float)));
+	// Unbind all to prevent accidentally modifying them
+	VAO1.Unbind();
+	VBO1.Unbind();
+	EBO1.Unbind();
 
-	// vertex attributes pointers (0, as specified in the shader)
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-	// shader compilation (vertex for position definition, fragment for colors wooo)
-	uint32_t vertexShader;
-	vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-	glCompileShader(vertexShader);
-
-	uint32_t fragShader1;
-	fragShader1 = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragShader1, 1, &fragmentShaderSource1, NULL);
-	glCompileShader(fragShader1);
-
-	// error logging for shader compilation
-	int success1;
-	int success2;
-	char infoLog[1028];
-	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success1);
-	glGetShaderiv(fragShader1, GL_COMPILE_STATUS, &success2);
-
-	if (!success1) {
-		glGetShaderInfoLog(vertexShader, 1028, NULL, infoLog);
-		std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-	}
-
-	if (!success2) {
-		glGetShaderInfoLog(fragShader1, 1028, NULL, infoLog);
-		std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-	}
-
-	// create a shader program and link both shaders above together
-	uint32_t shaderProgram;
-	shaderProgram = glCreateProgram();
-	glAttachShader(shaderProgram, vertexShader);
-	glAttachShader(shaderProgram, fragShader1);
-	glLinkProgram(shaderProgram);
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragShader1);
+	// Gets ID of uniform called "scale"
+	GLuint uniID = glGetUniformLocation(shaderProgram.ID, "scale");
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -138,13 +78,14 @@ int main() {
 
 	// main draw loop sigma
 	while (!glfwWindowShouldClose(window)) {
-		
-		glBindVertexArray(VAO);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 		processInput(window);
 
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		shaderProgram.Activate();
+		glUniform1f(uniID, 0.5f);
+		VAO1.Bind();
 
 		if (wireframeMode)
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -155,7 +96,6 @@ int main() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		glUseProgram(shaderProgram);
 		glDrawElements(GL_TRIANGLES, 9, GL_UNSIGNED_INT, 0);
 
 		ImGui::Begin("cool menu for stuff and shit");
@@ -166,17 +106,19 @@ int main() {
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());	 
 
-		glfwPollEvents();
 		glfwSwapBuffers(window);
+		glfwPollEvents();
 	}
 	ImGui_ImplGlfw_Shutdown();
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui::DestroyContext();
 
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
-	glDeleteProgram(shaderProgram);
+	VAO1.Delete();
+	VBO1.Delete();
+	EBO1.Delete();
+	shaderProgram.Delete();
 
+	glfwDestroyWindow(window);
 	glfwTerminate();
 	return 0;
 }
