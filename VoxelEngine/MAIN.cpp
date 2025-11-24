@@ -13,15 +13,16 @@
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 
-const int SCREEN_WIDTH = 640;
-const int SCREEN_HEIGHT = 480;
+const int SCREEN_WIDTH = 1280;
+const int SCREEN_HEIGHT = 720;
 
 float vertices[] = {
-	-0.8f, -0.8f, 0.0f,
-	-0.4f, 0.8f, 0.0f,
-	0.0f, -0.8f, 0.0f,
-	0.4f, 0.8f, 0.0f,
-	0.8f, -0.8f, 0.0f
+	// coords			    // colors
+	-0.8f, -0.8f, 0.0f,		1.0f, 1.0f, 1.0f, // lower left
+	-0.4f,  0.8f, 0.0f,		1.0f, 1.0f, 1.0f, // upper left
+	 0.0f, -0.8f, 0.0f,		1.0f, 0.0f, 0.0f, // lower middle
+	 0.4f,  0.8f, 0.0f,		1.0f, 1.0f, 1.0f, // upper right
+	 0.8f, -0.8f, 0.0f,		1.0f, 1.0f, 1.0f  // lower right
 };
 unsigned int indices[] = {  // note that we start from 0!
 	0, 1, 2,   // first triangle
@@ -57,8 +58,9 @@ int main() {
 	EBO EBO1(indices, sizeof(indices));
 
 	// Links VBO attributes such as coordinates and colors to VAO
-	VAO1.LinkAttrib(VBO1, 0, 3, GL_FLOAT, 3 * sizeof(float), (void*)0);
-	VAO1.LinkAttrib(VBO1, 1, 3, GL_FLOAT, 3 * sizeof(float), (void*)(3 * sizeof(float)));
+	//https://youtu.be/45MIykWJ-C4?t=2508
+	VAO1.LinkAttrib(VBO1, 0, 3, GL_FLOAT, 6 * sizeof(float), (void*)0);
+	VAO1.LinkAttrib(VBO1, 1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 	// Unbind all to prevent accidentally modifying them
 	VAO1.Unbind();
 	VBO1.Unbind();
@@ -84,7 +86,7 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		shaderProgram.Activate();
-		glUniform1f(uniID, 0.5f);
+		glUniform1f(uniID, 0.2f);
 		VAO1.Bind();
 
 		if (wireframeMode)
