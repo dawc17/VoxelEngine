@@ -8,20 +8,20 @@ set(SOURCES
 
 add_executable(VoxelEngine ${SOURCES})
 
-# glad
-add_library(glad libs/glad/src/glad.c)
-target_include_directories(glad PUBLIC libs/glad/include)
+# === GLAD ===
+add_library(glad ../libs/glad/src/glad.c)
+target_include_directories(glad PUBLIC ../libs/glad/include)
 
-# include dirs
+# === Include directories ===
 target_include_directories(VoxelEngine PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    libs/glad/include
-    libs/glm
+    ../libs/glad/include
+    ../libs/glm
 )
 
-# link libs
-if (WIN32)
-    target_link_libraries(VoxelEngine glad glfw3 opengl32)
+# === GLFW & OpenGL ===
+find_package(glfw3 REQUIRED)
+if(WIN32)
+    target_link_libraries(VoxelEngine glad glfw opengl32)
 else()
     target_link_libraries(VoxelEngine glad glfw GL)
 endif()
