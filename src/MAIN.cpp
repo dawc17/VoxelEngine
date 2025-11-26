@@ -20,8 +20,25 @@
 #include <iostream>
 #include <string>
 
+struct Camera
+{
+  glm::vec3 position;
+  float yaw;
+  float pitch;
+  float fov;
+};
+
+glm::vec3 CameraForward(const Camera& camera)
+{
+  glm::vec3 forward;
+  forward.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+  forward.y = sin(glm::radians(camera.pitch));
+  forward.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+  return glm::normalize(forward);
+}
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
-void processInput(GLFWwindow *window);
+void processInput(GLFWwindow *window, Camera& camera, float dt);
 std::string resolveTexturePath(const std::string &relativePath);
 
 const int SCREEN_WIDTH = 1280;
@@ -39,26 +56,6 @@ unsigned int indices[] = {
     0, 1, 2, // first triangle
     0, 3, 1  // second triangle
 };
-
-struct Camera
-{
-  glm::vec3 position;
-  float yaw;
-  float pitch;
-  float fov;
-};
-
-glm::vec3 CameraForward(const Camera &cam)
-{
-  float yawRad = glm::radians(cam.yaw);
-  float pitchRad = glm::radians(cam.pitch);
-
-  glm::vec3 dir;
-  dir.x = cos(pitchRad) * cos(yawRad);
-  dir.y = sin(pitchRad);
-  dir.z = cos(pitchRad) * sin(yawRad);
-  return glm::normalize(dir);
-}
 
 int main()
 {
