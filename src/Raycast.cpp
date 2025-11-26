@@ -40,37 +40,38 @@ void setBlockAtWorld(int wx, int wy, int wz, uint8_t blockId, ChunkManager& chun
 
   chunk->blocks[blockIndex(lx, ly, lz)] = blockId;
   chunk->dirtyMesh = true;
+  chunk->dirtyLight = true;  // Recalculate lighting when blocks change
 
   // Mark neighboring chunks dirty if block is on a boundary
   if (lx == 0)
   {
     Chunk* neighbor = chunkManager.getChunk(cx - 1, cy, cz);
-    if (neighbor) neighbor->dirtyMesh = true;
+    if (neighbor) { neighbor->dirtyMesh = true; neighbor->dirtyLight = true; }
   }
   if (lx == CHUNK_SIZE - 1)
   {
     Chunk* neighbor = chunkManager.getChunk(cx + 1, cy, cz);
-    if (neighbor) neighbor->dirtyMesh = true;
+    if (neighbor) { neighbor->dirtyMesh = true; neighbor->dirtyLight = true; }
   }
   if (ly == 0)
   {
     Chunk* neighbor = chunkManager.getChunk(cx, cy - 1, cz);
-    if (neighbor) neighbor->dirtyMesh = true;
+    if (neighbor) { neighbor->dirtyMesh = true; neighbor->dirtyLight = true; }
   }
   if (ly == CHUNK_SIZE - 1)
   {
     Chunk* neighbor = chunkManager.getChunk(cx, cy + 1, cz);
-    if (neighbor) neighbor->dirtyMesh = true;
+    if (neighbor) { neighbor->dirtyMesh = true; neighbor->dirtyLight = true; }
   }
   if (lz == 0)
   {
     Chunk* neighbor = chunkManager.getChunk(cx, cy, cz - 1);
-    if (neighbor) neighbor->dirtyMesh = true;
+    if (neighbor) { neighbor->dirtyMesh = true; neighbor->dirtyLight = true; }
   }
   if (lz == CHUNK_SIZE - 1)
   {
     Chunk* neighbor = chunkManager.getChunk(cx, cy, cz + 1);
-    if (neighbor) neighbor->dirtyMesh = true;
+    if (neighbor) { neighbor->dirtyMesh = true; neighbor->dirtyLight = true; }
   }
 }
 

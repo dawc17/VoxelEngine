@@ -2,9 +2,11 @@
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aLocalUV;
 layout (location = 2) in float aTileIndex;
+layout (location = 3) in float aLight;
 
 out vec2 LocalUV;
 flat out float TileIndex;
+out float Light;
 
 uniform mat4 transform;
 
@@ -13,4 +15,5 @@ void main()
    gl_Position = transform * vec4(aPos, 1.0);
    LocalUV = aLocalUV;
    TileIndex = aTileIndex;
+   Light = aLight;
 }

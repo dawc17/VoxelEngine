@@ -3,13 +3,15 @@
 #include "ChunkManager.h"
 #include <glad/glad.h>
 #include <cstddef> // for offsetof
+#include <queue>
 
-static const Vertex FACE_POS_X[4] = { {{1, 0, 0}, {1, 0}, 0}, {{1, 1, 0}, {1, 1}, 0}, {{1, 1, 1}, {0, 1}, 0}, {{1, 0, 1}, {0, 0}, 0} };
-static const Vertex FACE_NEG_X[4] = { {{0, 0, 1}, {1, 0}, 0}, {{0, 1, 1}, {1, 1}, 0}, {{0, 1, 0}, {0, 1}, 0}, {{0, 0, 0}, {0, 0}, 0} };
-static const Vertex FACE_POS_Y[4] = { {{0, 1, 0}, {1, 0}, 0}, {{0, 1, 1}, {1, 1}, 0}, {{1, 1, 1}, {0, 1}, 0}, {{1, 1, 0}, {0, 0}, 0} };
-static const Vertex FACE_NEG_Y[4] = { {{0, 0, 1}, {1, 0}, 0}, {{0, 0, 0}, {1, 1}, 0}, {{1, 0, 0}, {0, 1}, 0}, {{1, 0, 1}, {0, 0}, 0} };
-static const Vertex FACE_POS_Z[4] = { {{1, 0, 1}, {1, 0}, 0}, {{1, 1, 1}, {1, 1}, 0}, {{0, 1, 1}, {0, 1}, 0}, {{0, 0, 1}, {0, 0}, 0} };
-static const Vertex FACE_NEG_Z[4] = { {{0, 0, 0}, {1, 0}, 0}, {{0, 1, 0}, {1, 1}, 0}, {{1, 1, 0}, {0, 1}, 0}, {{1, 0, 0}, {0, 0}, 0} };
+// Face templates now include default light value of 1.0
+static const Vertex FACE_POS_X[4] = { {{1, 0, 0}, {1, 0}, 0, 1.0f}, {{1, 1, 0}, {1, 1}, 0, 1.0f}, {{1, 1, 1}, {0, 1}, 0, 1.0f}, {{1, 0, 1}, {0, 0}, 0, 1.0f} };
+static const Vertex FACE_NEG_X[4] = { {{0, 0, 1}, {1, 0}, 0, 1.0f}, {{0, 1, 1}, {1, 1}, 0, 1.0f}, {{0, 1, 0}, {0, 1}, 0, 1.0f}, {{0, 0, 0}, {0, 0}, 0, 1.0f} };
+static const Vertex FACE_POS_Y[4] = { {{0, 1, 0}, {1, 0}, 0, 1.0f}, {{0, 1, 1}, {1, 1}, 0, 1.0f}, {{1, 1, 1}, {0, 1}, 0, 1.0f}, {{1, 1, 0}, {0, 0}, 0, 1.0f} };
+static const Vertex FACE_NEG_Y[4] = { {{0, 0, 1}, {1, 0}, 0, 1.0f}, {{0, 0, 0}, {1, 1}, 0, 1.0f}, {{1, 0, 0}, {0, 1}, 0, 1.0f}, {{1, 0, 1}, {0, 0}, 0, 1.0f} };
+static const Vertex FACE_POS_Z[4] = { {{1, 0, 1}, {1, 0}, 0, 1.0f}, {{1, 1, 1}, {1, 1}, 0, 1.0f}, {{0, 1, 1}, {0, 1}, 0, 1.0f}, {{0, 0, 1}, {0, 0}, 0, 1.0f} };
+static const Vertex FACE_NEG_Z[4] = { {{0, 0, 0}, {1, 0}, 0, 1.0f}, {{0, 1, 0}, {1, 1}, 0, 1.0f}, {{1, 1, 0}, {0, 1}, 0, 1.0f}, {{1, 0, 0}, {0, 0}, 0, 1.0f} };
 
 static const Vertex *FACE_TABLE[6] = {
     FACE_POS_X, FACE_NEG_X,
@@ -21,8 +23,186 @@ static const uint32_t FACE_INDICES[6] = {
     0, 1, 2,
     0, 2, 3};
 
+// Calculate skylight for a chunk with proper propagation
+void calculateSkyLight(Chunk &c, ChunkManager &chunkManager)
+{
+  // Helper to get block at position (handles neighbor chunks)
+  auto getBlockWorld = [&](int x, int y, int z) -> BlockID
+  {
+    if (x >= 0 && x < CHUNK_SIZE &&
+        y >= 0 && y < CHUNK_SIZE &&
+        z >= 0 && z < CHUNK_SIZE)
+    {
+      return c.blocks[blockIndex(x, y, z)];
+    }
+    
+    int neighborCX = c.position.x;
+    int neighborCY = c.position.y;
+    int neighborCZ = c.position.z;
+    int localX = x, localY = y, localZ = z;
+    
+    if (x < 0) { neighborCX--; localX = CHUNK_SIZE + x; }
+    else if (x >= CHUNK_SIZE) { neighborCX++; localX = x - CHUNK_SIZE; }
+    if (y < 0) { neighborCY--; localY = CHUNK_SIZE + y; }
+    else if (y >= CHUNK_SIZE) { neighborCY++; localY = y - CHUNK_SIZE; }
+    if (z < 0) { neighborCZ--; localZ = CHUNK_SIZE + z; }
+    else if (z >= CHUNK_SIZE) { neighborCZ++; localZ = z - CHUNK_SIZE; }
+    
+    Chunk *neighbor = chunkManager.getChunk(neighborCX, neighborCY, neighborCZ);
+    if (!neighbor) return 0;  // Air outside loaded area
+    return neighbor->blocks[blockIndex(localX, localY, localZ)];
+  };
+
+  // Helper to get skylight at position (handles neighbor chunks)
+  auto getSkyLightWorld = [&](int x, int y, int z) -> uint8_t
+  {
+    if (x >= 0 && x < CHUNK_SIZE &&
+        y >= 0 && y < CHUNK_SIZE &&
+        z >= 0 && z < CHUNK_SIZE)
+    {
+      return c.skyLight[blockIndex(x, y, z)];
+    }
+    
+    int neighborCX = c.position.x;
+    int neighborCY = c.position.y;
+    int neighborCZ = c.position.z;
+    int localX = x, localY = y, localZ = z;
+    
+    if (x < 0) { neighborCX--; localX = CHUNK_SIZE + x; }
+    else if (x >= CHUNK_SIZE) { neighborCX++; localX = x - CHUNK_SIZE; }
+    if (y < 0) { neighborCY--; localY = CHUNK_SIZE + y; }
+    else if (y >= CHUNK_SIZE) { neighborCY++; localY = y - CHUNK_SIZE; }
+    if (z < 0) { neighborCZ--; localZ = CHUNK_SIZE + z; }
+    else if (z >= CHUNK_SIZE) { neighborCZ++; localZ = z - CHUNK_SIZE; }
+    
+    Chunk *neighbor = chunkManager.getChunk(neighborCX, neighborCY, neighborCZ);
+    if (!neighbor) return MAX_SKY_LIGHT;  // Full light outside (sky above)
+    return neighbor->skyLight[blockIndex(localX, localY, localZ)];
+  };
+
+  // Initialize all to 0 (dark)
+  std::fill(std::begin(c.skyLight), std::end(c.skyLight), 0);
+
+  // BFS queue for light propagation
+  std::queue<glm::ivec3> lightQueue;
+
+  // Phase 1: Direct sunlight - cast rays from top of chunk downward
+  // Check if chunk above exists
+  Chunk *chunkAbove = chunkManager.getChunk(c.position.x, c.position.y + 1, c.position.z);
+  
+  for (int x = 0; x < CHUNK_SIZE; x++)
+  {
+    for (int z = 0; z < CHUNK_SIZE; z++)
+    {
+      // Get incoming light from above (from chunk above or sky)
+      uint8_t incomingLight = MAX_SKY_LIGHT;
+      if (chunkAbove)
+      {
+        // Check the bottom of the chunk above
+        BlockID blockAbove = chunkAbove->blocks[blockIndex(x, 0, z)];
+        if (blockAbove != 0 && !g_blockTypes[blockAbove].transparent)
+        {
+          incomingLight = chunkAbove->skyLight[blockIndex(x, 0, z)];
+        }
+        else
+        {
+          incomingLight = chunkAbove->skyLight[blockIndex(x, 0, z)];
+        }
+      }
+      
+      // Propagate light downward through this column
+      uint8_t currentLight = incomingLight;
+      for (int y = CHUNK_SIZE - 1; y >= 0; y--)
+      {
+        int idx = blockIndex(x, y, z);
+        BlockID block = c.blocks[idx];
+        
+        if (block == 0)
+        {
+          // Air - light passes through fully
+          c.skyLight[idx] = currentLight;
+          if (currentLight > 1)
+            lightQueue.push({x, y, z});
+        }
+        else if (g_blockTypes[block].transparent)
+        {
+          // Transparent block (leaves) - light passes with minimal reduction
+          // Only reduce every other block to let more light through canopies
+          if (currentLight > 0 && (y % 2 == 0))
+            currentLight = currentLight > 1 ? currentLight - 1 : currentLight;
+          c.skyLight[idx] = currentLight;
+          if (currentLight > 1)
+            lightQueue.push({x, y, z});
+        }
+        else
+        {
+          // Solid opaque block - stops light
+          currentLight = 0;
+          c.skyLight[idx] = 0;
+        }
+      }
+    }
+  }
+
+  // Phase 2: Horizontal propagation using BFS
+  // Light spreads sideways with attenuation
+  while (!lightQueue.empty())
+  {
+    glm::ivec3 pos = lightQueue.front();
+    lightQueue.pop();
+    
+    int idx = blockIndex(pos.x, pos.y, pos.z);
+    uint8_t currentLight = c.skyLight[idx];
+    
+    if (currentLight <= 1) continue;  // Not enough light to spread
+    
+    // Check all 6 neighbors (but mainly horizontal for shadow spread)
+    const glm::ivec3 dirs[6] = {{1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1}};
+    
+    for (const auto& dir : dirs)
+    {
+      int nx = pos.x + dir.x;
+      int ny = pos.y + dir.y;
+      int nz = pos.z + dir.z;
+      
+      // Only process blocks within this chunk for now
+      if (nx < 0 || nx >= CHUNK_SIZE ||
+          ny < 0 || ny >= CHUNK_SIZE ||
+          nz < 0 || nz >= CHUNK_SIZE)
+        continue;
+      
+      int nidx = blockIndex(nx, ny, nz);
+      BlockID neighborBlock = c.blocks[nidx];
+      
+      // Can't propagate into solid blocks
+      if (neighborBlock != 0 && !g_blockTypes[neighborBlock].transparent)
+        continue;
+      
+      // Light diminishes by 1 each horizontal step
+      uint8_t attenuation = 1;
+      uint8_t newLight = (currentLight > attenuation) ? currentLight - attenuation : 0;
+      
+      // Only update if we're bringing more light
+      if (newLight > c.skyLight[nidx])
+      {
+        c.skyLight[nidx] = newLight;
+        if (newLight > 1)
+          lightQueue.push({nx, ny, nz});
+      }
+    }
+  }
+  
+  c.dirtyLight = false;
+}
+
 void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
 {
+  // Calculate lighting if needed
+  if (c.dirtyLight)
+  {
+    calculateSkyLight(c, chunkManager);
+  }
+
   // Lambda to get block at local position, checking neighboring chunks at boundaries
   auto getBlock = [&](int x, int y, int z) -> BlockID
   {
@@ -61,6 +241,40 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
     return neighbor->blocks[blockIndex(localX, localY, localZ)];
   };
 
+  // Lambda to get skylight at position (handles neighbor chunks)
+  auto getSkyLight = [&](int x, int y, int z) -> uint8_t
+  {
+    if (x >= 0 && x < CHUNK_SIZE &&
+        y >= 0 && y < CHUNK_SIZE &&
+        z >= 0 && z < CHUNK_SIZE)
+    {
+      return c.skyLight[blockIndex(x, y, z)];
+    }
+    
+    int neighborCX = c.position.x;
+    int neighborCY = c.position.y;
+    int neighborCZ = c.position.z;
+    int localX = x, localY = y, localZ = z;
+    
+    if (x < 0) { neighborCX--; localX = CHUNK_SIZE + x; }
+    else if (x >= CHUNK_SIZE) { neighborCX++; localX = x - CHUNK_SIZE; }
+    if (y < 0) { neighborCY--; localY = CHUNK_SIZE + y; }
+    else if (y >= CHUNK_SIZE) { neighborCY++; localY = y - CHUNK_SIZE; }
+    if (z < 0) { neighborCZ--; localZ = CHUNK_SIZE + z; }
+    else if (z >= CHUNK_SIZE) { neighborCZ++; localZ = z - CHUNK_SIZE; }
+    
+    Chunk *neighbor = chunkManager.getChunk(neighborCX, neighborCY, neighborCZ);
+    if (!neighbor) return MAX_SKY_LIGHT;
+    return neighbor->skyLight[blockIndex(localX, localY, localZ)];
+  };
+
+  // Lambda to check if a block is solid (for AO calculation)
+  auto isSolid = [&](int x, int y, int z) -> bool
+  {
+    BlockID block = getBlock(x, y, z);
+    return block != 0 && !g_blockTypes[block].transparent;
+  };
+
   std::vector<Vertex> verts;
   verts.reserve(CHUNK_VOLUME * 6 * 4); // worst case: six quads per block, four verts per quad
   std::vector<uint32_t> inds;
@@ -78,6 +292,7 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
     int v = (axis + 2) % 3;
 
     // 2D mask for the slice
+    // 2D mask for the slice - just block type, no AO
     BlockID mask[CHUNK_SIZE][CHUNK_SIZE];
 
     // Iterate through the chunk along the main axis
@@ -98,9 +313,7 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
           glm::ivec3 npos = pos + n;
           BlockID neighbor = getBlock(npos.x, npos.y, npos.z);
 
-          // Show face if:
-          // 1. Current block is solid AND
-          // 2. Neighbor is air (0) OR neighbor is transparent (unless current is also transparent of the same type)
+          // Show face if current is solid and neighbor is air/transparent
           bool showFace = false;
           if (current != 0)
           {
@@ -110,7 +323,6 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
             }
             else if (g_blockTypes[neighbor].transparent)
             {
-              // Don't cull faces against transparent blocks, unless same transparent type
               if (current != neighbor)
               {
                 showFace = true;
@@ -118,18 +330,11 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
             }
           }
 
-          if (showFace)
-          {
-            mask[j][k] = current;
-          }
-          else
-          {
-            mask[j][k] = 0;
-          }
+          mask[j][k] = showFace ? current : 0;
         }
       }
 
-      // 2. Greedy meshing on mask
+      // 2. Greedy meshing - merge by block type only
       for (int j = 0; j < CHUNK_SIZE; j++)
       {
         for (int k = 0; k < CHUNK_SIZE; k++)
@@ -142,9 +347,7 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
 
             // Compute width
             while (k + w < CHUNK_SIZE && mask[j][k + w] == type)
-            {
               w++;
-            }
 
             // Compute height
             bool done = false;
@@ -166,13 +369,12 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
             const Vertex *face = FACE_TABLE[dir];
             uint32_t baseIndex = verts.size();
 
-            // Get the tile index and rotation for this block type and face direction
             int tileIndex = g_blockTypes[type].faceTexture[dir];
             int rotation = g_blockTypes[type].faceRotation[dir];
 
-            // Determine if this is a positive or negative facing direction
-            // For positive dirs (+X,+Y,+Z), face is on far side of slice (i+1)
-            // For negative dirs (-X,-Y,-Z), face is on near side of slice (i)
+            // Simple face-based shading - same light for all vertices
+            float faceShade = FACE_SHADE[dir];
+
             int axisOffset = (n[axis] > 0) ? 1 : 0;
 
             for (int vIdx = 0; vIdx < 4; vIdx++)
@@ -180,49 +382,45 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
               Vertex vtx = face[vIdx];
               glm::vec3 finalPos;
 
-              // Place the face at the correct position along the axis
               finalPos[axis] = i + axisOffset;
 
-              // U axis - use the face template's uv.x to determine which edge (0 or w)
               if (vtx.uv.x > 0.5f) finalPos[u] = k + w;
               else finalPos[u] = k;
 
-              // V axis - use the face template's uv.y to determine which edge (0 or h)
               if (vtx.uv.y > 0.5f) finalPos[v] = j + h;
               else finalPos[v] = j;
 
               vtx.pos = finalPos;
               
-              // Build UVs in block units so the shader can repeat the atlas tile across merged quads
               float localU = (vtx.uv.x > 0.5f) ? static_cast<float>(w) : 0.0f;
               float localV = (vtx.uv.y > 0.5f) ? static_cast<float>(h) : 0.0f;
               
-              // Apply rotation/flip to UVs (0=normal, 1=90° CCW, 2=flip vertical, 3=90° CW)
               switch (rotation)
               {
-                case 1: // 90° CCW - swap and flip
+                case 1:
                   {
                     float tmp = localU;
                     localU = localV;
                     localV = static_cast<float>(w) - tmp;
                   }
                   break;
-                case 2: // Flip vertical (upside down)
+                case 2:
                   localV = static_cast<float>(h) - localV;
                   break;
-                case 3: // 90° CW - swap and flip
+                case 3:
                   {
                     float tmp = localU;
                     localU = static_cast<float>(h) - localV;
                     localV = tmp;
                   }
                   break;
-                default: // 0 - no rotation
+                default:
                   break;
               }
               
               vtx.uv = glm::vec2(localU, localV);
               vtx.tileIndex = static_cast<float>(tileIndex);
+              vtx.light = faceShade;  // Same light for entire face
 
               verts.push_back(vtx);
             }
@@ -232,12 +430,8 @@ void buildChunkMesh(Chunk &c, ChunkManager &chunkManager)
 
             // Clear mask
             for (int dy = 0; dy < h; dy++)
-            {
               for (int dx = 0; dx < w; dx++)
-              {
                 mask[j + dy][k + dx] = 0;
-              }
-            }
           }
         }
       }
@@ -274,6 +468,10 @@ void uploadToGPU(Chunk &c, const std::vector<Vertex> &verts, const std::vector<u
   glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex),
                         (void *)offsetof(Vertex, tileIndex));
   glEnableVertexAttribArray(2);
+
+  glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex),
+                        (void *)offsetof(Vertex, light));
+  glEnableVertexAttribArray(3);
 
   c.indexCount = inds.size();
   c.vertexCount = verts.size();
