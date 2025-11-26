@@ -1,6 +1,8 @@
 # Engine
 
 Voxel chunk playground built with modern OpenGL 4.6. Renders greedy-meshed 16x16x16 chunks using a 2D texture array sliced from `assets/textures/blocks.png` (32x32 tiles) and overlays ImGui debug stats. GLAD, ImGui, and GLM are vendored under `libs/`.
+<img width="1276" height="719" alt="image" src="https://github.com/user-attachments/assets/81f28409-9eb0-4661-aafb-c75796b7a0d8" />
+
 
 ## Features
 - Streams chunks around the camera and uploads meshes on demand (greedy meshing + element/index buffers).
