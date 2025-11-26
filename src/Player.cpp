@@ -22,7 +22,7 @@ AABB AABB::fromBlockPos(int x, int y, int z)
 
 // Player implementation
 Player::Player()
-    : position(0.0f, 12.0f, 0.0f)  // Start above terrain
+    : position(0.0f, 30.0f, 0.0f)  // Start high above terrain, will fall to ground
     , velocity(0.0f)
     , yaw(-90.0f)
     , pitch(0.0f)
