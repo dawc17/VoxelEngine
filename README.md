@@ -1,15 +1,16 @@
 # Engine
 
-Voxel chunk playground built with modern OpenGL 4.6. Renders greedy-meshed 16x16x16 chunks using a 2D texture array sliced from `assets/textures/blocks.png` (32x32 tiles) and overlays ImGui debug stats. GLAD, ImGui, and GLM are vendored under `libs/`.
+Voxel chunk playground built with modern OpenGL 4.6. Renders greedy-meshed 16x16x16 chunks using a 2D texture array sliced from `assets/textures/blocks.png` (32x32 tiles) and overlays ImGui debug stats. GLAD, ImGui, and GLM are vendored under `libs/`. Since the last README update the engine picked up a full player controller, block palette, multi-layer chunk streaming, terrain gen with trees, and basic skylight.
 <img width="1276" height="719" alt="image" src="https://github.com/user-attachments/assets/81f28409-9eb0-4661-aafb-c75796b7a0d8" />
 
 
 ## Features
-- Streams chunks around the camera and uploads meshes on demand (greedy meshing + element/index buffers).
-- Texture atlas loader turns `assets/textures/blocks.png` into a 32x32 layer array with mipmaps and anisotropic filtering.
-- FPS-style camera (`WASD` + mouse look) with runtime speed slider and cursor lock toggle.
-- Raycast selection outlines targeted blocks; `LMB` breaks blocks, `RMB` places a stone block on the hit face (avoids placing inside the player).
-- ImGui debug window shows FPS, camera position/orientation, current chunk, selected block id/distance, and a wireframe toggle.
+- Streams a 5x5x5 column of chunks around the player, rebuilds greedy-meshed VBO/EBOs on demand, and uploads sky-lit vertices.
+- Procedural FBM terrain with stone/dirt/grass/sand strata plus tree decorator that places log + leaf volumes pulled from the 32x32 tile atlas.
+- Texture atlas loader turns `assets/textures/blocks.png` into a 2D texture array with mipmaps and full-anisotropy sampling.
+- Player entity with AABB collisions, gravity, jumping, noclip toggle, and a configurable move speed; centered crosshair aids aiming.
+- Raycast selection outline drives a block palette (dirt, grass, stone, sand, oak log, oak leaves); LMB breaks blocks, RMB places the currently selected block while avoiding the player volume.
+- ImGui debug window shows FPS, camera position/orientation, velocity, chunk coords, currently hovered block, block palette selection, wireframe toggle, noclip toggle, and move-speed slider.
 
 ## Prerequisites
 - CMake 3.14+
@@ -40,18 +41,23 @@ If you already have GLFW installed, set `-DGLFW_FETCH=OFF` and ensure CMake can 
 - Release builds on Windows land at `build\src\Release\VoxelEngine.exe`; Debug builds live in `build\src\Debug\VoxelEngine.exe`.
 
 ## Controls
-- `W/A/S/D`: fly the camera
+- `W/A/S/D`: walk/fly the player depending on noclip state
 - Mouse: look around (cursor locked by default)
-- `U`: toggle cursor lock/unlock (re-centers on lock)
+- `Space`: jump (or move up while noclip is enabled)
+- `Left Shift`: move down while noclip is enabled
+- Mouse wheel: cycle the placeable block palette (dirt, grass, stone, sand, oak log, oak leaves)
 - `LMB`: break the targeted block
-- `RMB`: place a stone block on the face you hit (skips if it would intersect the player)
+- `RMB`: place the selected block on the hit face (skips if it would intersect the player)
+- `U`: toggle cursor lock/unlock (re-centers on lock)
 - `Esc`: close the window
-- ImGui debug window: wireframe toggle, camera speed slider, FPS/camera/chunk/block readouts
+- ImGui debug window: wireframe toggle, noclip toggle, camera speed slider, FPS/camera/chunk/block readouts
 
 ## Project Layout
 - `src/main.cpp`: main loop, chunk streaming, texture array setup, ImGui wiring, raycast selection
 - `src/Chunk*`, `Meshing.*`, `BlockTypes.*`: chunk storage, greedy meshing, block/atlas mapping
+- `src/Player.*`, `Raycast.*`: player physics (AABB, gravity, noclip) plus block hit testing and placement helpers
 - `src/ShaderClass.*`, `VBO.*`, `VAO.*`, `EBO.*`: OpenGL helpers
+- `src/selection.vert/.frag`: thin shader used for the wireframe highlight
 - `assets/textures/`: atlas (`blocks.png`) and reference textures
 
 ## Troubleshooting
