@@ -8,6 +8,7 @@
 #include "Meshing.h"
 #include "BlockTypes.h"
 #include "Raycast.h"
+#include "Player.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -27,16 +28,17 @@
 #include <vector>
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
-void processInput(GLFWwindow *window, Camera &camera, float dt);
+void processInput(GLFWwindow *window, Player &player, float dt);
 void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
+void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 std::string resolveTexturePath(const std::string &relativePath);
 
-const int SCREEN_WIDTH = 1280;
-const int SCREEN_HEIGHT = 720;
+const int SCREEN_WIDTH = 1920;
+const int SCREEN_HEIGHT = 1080;
 const float MAX_RAYCAST_DISTANCE = 8.0f;
 
 float fps = 0.0f;
-float cameraSpeed = 2.5f;
+float cameraSpeed = 5.5f;
 
 bool mouseLocked = true;
 bool firstMouse = true;
@@ -44,8 +46,12 @@ double lastMouseX = SCREEN_WIDTH / 2.0;
 double lastMouseY = SCREEN_HEIGHT / 2.0;
 
 // Global pointers for mouse callback
-Camera* g_camera = nullptr;
+Player* g_player = nullptr;
 ChunkManager* g_chunkManager = nullptr;
+
+// Block selection - list of placeable block IDs (skip air=0)
+const std::vector<uint8_t> PLACEABLE_BLOCKS = {1, 2, 3, 4};  // dirt, grass, stone, sand
+int selectedBlockIndex = 2;  // Default to stone (index 2 = block ID 3)
 
 int main()
 {
@@ -211,24 +217,22 @@ int main()
     
     // Set our mouse callback BEFORE ImGui init so ImGui can chain to it
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetScrollCallback(window, scrollCallback);
     
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 460");
 
     bool wireframeMode = false;
 
-    Camera cam{
-        glm::vec3(0.0f, 0.0f, 3.0f),
-        -90.0f,
-        0.0f,
-        70.0f};
+    Player player;
+    float fov = 70.0f;
 
     float lastFrame = 0.0f;
 
     ChunkManager chunkManager;
 
     // Set up global pointers for mouse callback
-    g_camera = &cam;
+    g_player = &player;
     g_chunkManager = &chunkManager;
 
     // Track selected block
@@ -240,6 +244,12 @@ int main()
       float currentFrame = glfwGetTime();
       float deltaTime = currentFrame - lastFrame;
       lastFrame = currentFrame;
+
+      // Clamp deltaTime to avoid physics issues during lag spikes (e.g., window resize)
+      // Max ~20 FPS equivalent to prevent falling through terrain
+      const float MAX_DELTA_TIME = 0.05f;
+      if (deltaTime > MAX_DELTA_TIME)
+        deltaTime = MAX_DELTA_TIME;
 
       double mouseX, mouseY;
       glfwGetCursorPos(window, &mouseX, &mouseY);
@@ -262,18 +272,19 @@ int main()
 
       if (mouseLocked)
       {
-        cam.yaw += xoffset;
-        cam.pitch += yoffset;
+        player.yaw += xoffset;
+        player.pitch += yoffset;
       }
 
-      if (cam.pitch > 89.0f)
-        cam.pitch = 89.0f;
-      if (cam.pitch < -89.0f)
-        cam.pitch = -89.0f;
+      if (player.pitch > 89.0f)
+        player.pitch = 89.0f;
+      if (player.pitch < -89.0f)
+        player.pitch = -89.0f;
 
       fps = 1.0f / deltaTime;
 
-      processInput(window, cam, deltaTime);
+      processInput(window, player, deltaTime);
+      player.update(deltaTime, chunkManager);
 
       glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -290,27 +301,36 @@ int main()
       ImGui_ImplGlfw_NewFrame();
       ImGui::NewFrame();
 
+      // When mouse is locked for gameplay, prevent ImGui from capturing mouse input
+      if (mouseLocked)
+      {
+        ImGui::GetIO().WantCaptureMouse = false;
+      }
+
       glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
       if (fbHeight == 0)
         fbHeight = 1;
 
       glm::mat4 model = glm::mat4(1.0f);
 
+      // Create a temporary Camera struct for CameraForward
+      Camera cam{player.getEyePosition(), player.yaw, player.pitch, fov};
       glm::vec3 camForward = CameraForward(cam);
+      glm::vec3 eyePos = player.getEyePosition();
       glm::mat4 view = glm::lookAt(
-          cam.position,
-          cam.position + camForward,
+          eyePos,
+          eyePos + camForward,
           glm::vec3(0.0f, 1.0f, 0.0f));
 
       float aspect = static_cast<float>(fbWidth) / static_cast<float>(fbHeight);
-      glm::mat4 proj = glm::perspective(glm::radians(cam.fov), aspect, 0.1f, 1000.f);
+      glm::mat4 proj = glm::perspective(glm::radians(fov), aspect, 0.1f, 1000.f);
 
       glm::mat4 mvp = proj * view * model;
       glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(mvp));
 
-      int cx = floor(cam.position.x / CHUNK_SIZE);
+      int cx = floor(player.position.x / CHUNK_SIZE);
       int cy = 0; // for now
-      int cz = floor(cam.position.z / CHUNK_SIZE);
+      int cz = floor(player.position.z / CHUNK_SIZE);
 
       const int LOAD_RADIUS = 4;
       const int UNLOAD_RADIUS = LOAD_RADIUS + 2;
@@ -369,7 +389,7 @@ int main()
       }
 
       // Raycast for block selection
-      selectedBlock = raycastVoxel(cam.position, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
+      selectedBlock = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
 
       // Render selection highlight
       if (selectedBlock.has_value())
@@ -402,12 +422,15 @@ int main()
 
       ImGui::Begin("Debug");
       ImGui::Text("FPS: %.1f", fps);
-      ImGui::Text("Camera pos: (%.2f, %.2f, %.2f)",
-                  cam.position.x, cam.position.y, cam.position.z);
-      ImGui::Text("Yaw: %.1f, Pitch: %.1f", cam.yaw, cam.pitch);
+      ImGui::Text("Position: (%.2f, %.2f, %.2f)",
+                  player.position.x, player.position.y, player.position.z);
+      ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
+                  player.velocity.x, player.velocity.y, player.velocity.z);
+      ImGui::Text("Yaw: %.1f, Pitch: %.1f", player.yaw, player.pitch);
+      ImGui::Text("On Ground: %s", player.onGround ? "Yes" : "No");
 
-      int chunkX = static_cast<int>(floor(cam.position.x / 16.0f));
-      int chunkZ = static_cast<int>(floor(cam.position.z / 16.0f));
+      int chunkX = static_cast<int>(floor(player.position.x / 16.0f));
+      int chunkZ = static_cast<int>(floor(player.position.z / 16.0f));
       ImGui::Text("Chunk: (%d, %d)", chunkX, chunkZ);
 
       if (selectedBlock.has_value())
@@ -432,11 +455,21 @@ int main()
       }
 
       ImGui::Separator();
+      
+      // Block names for display
+      const char* blockNames[] = {"Air", "Dirt", "Grass", "Stone", "Sand"};
+      uint8_t selectedBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
+      ImGui::Text("Selected: %s (ID: %d)", blockNames[selectedBlockId], selectedBlockId);
+      ImGui::Text("Scroll wheel to change block");
+      
+      ImGui::Separator();
       ImGui::Text("LMB: Break block");
       ImGui::Text("RMB: Place block");
+      ImGui::Text("Space: Jump");
 
       ImGui::Checkbox("Wireframe mode", &wireframeMode);
-      ImGui::SliderFloat("Camera Speed", &cameraSpeed, 0.0f, 10.0f);
+      ImGui::Checkbox("Noclip mode", &player.noclip);
+      ImGui::SliderFloat("Move Speed", &cameraSpeed, 0.0f, 20.0f);
 
       ImGui::End();
 
@@ -494,9 +527,11 @@ int main()
 void framebuffer_size_callback(GLFWwindow *window, int width, int height)
 {
   glViewport(0, 0, width, height);
+  // Reset mouse tracking to prevent camera jump when window is resized/maximized
+  firstMouse = true;
 }
 
-void processInput(GLFWwindow *window, Camera &camera, float dt)
+void processInput(GLFWwindow *window, Player &player, float dt)
 {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
@@ -524,19 +559,36 @@ void processInput(GLFWwindow *window, Camera &camera, float dt)
     uKeyPressed = false;
   }
 
-  float speed = cameraSpeed * dt;
-
-  glm::vec3 forward = CameraForward(camera);
-  glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+  // Build input direction from WASD keys
+  glm::vec3 forward = playerForwardXZ(player);
+  glm::vec3 right = playerRightXZ(player);
+  glm::vec3 inputDir(0.0f);
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    camera.position += forward * speed;
+    inputDir += forward;
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    camera.position -= forward * speed;
+    inputDir -= forward;
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    camera.position -= right * speed;
+    inputDir -= right;
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    camera.position += right * speed;
+    inputDir += right;
+
+  // Handle noclip mode for vertical movement
+  if (player.noclip)
+  {
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+      inputDir.y += 1.0f;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+      inputDir.y -= 1.0f;
+  }
+
+  player.applyMovement(inputDir, cameraSpeed);
+
+  // Handle jumping (only in normal mode)
+  if (!player.noclip && glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+  {
+    player.jump();
+  }
 }
 
 std::string resolveTexturePath(const std::string &relativePath)
@@ -571,11 +623,14 @@ void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
   if (action != GLFW_PRESS)
     return;
 
-  if (!g_camera || !g_chunkManager)
+  if (!g_player || !g_chunkManager)
     return;
 
-  glm::vec3 forward = CameraForward(*g_camera);
-  auto hit = raycastVoxel(g_camera->position, forward, MAX_RAYCAST_DISTANCE, *g_chunkManager);
+  // Create a temporary Camera for CameraForward
+  Camera tempCam{g_player->getEyePosition(), g_player->yaw, g_player->pitch, 70.0f};
+  glm::vec3 forward = CameraForward(tempCam);
+  glm::vec3 eyePos = g_player->getEyePosition();
+  auto hit = raycastVoxel(eyePos, forward, MAX_RAYCAST_DISTANCE, *g_chunkManager);
 
   if (!hit.has_value())
     return;
@@ -590,16 +645,38 @@ void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
     // Place block (on the face we hit)
     glm::ivec3 placePos = hit->blockPos + hit->normal;
     
-    // Don't place if it would be inside the player
-    glm::ivec3 playerBlock(
-        static_cast<int>(std::floor(g_camera->position.x)),
-        static_cast<int>(std::floor(g_camera->position.y)),
-        static_cast<int>(std::floor(g_camera->position.z)));
-    glm::ivec3 playerFeet = playerBlock - glm::ivec3(0, 1, 0);
+    // Don't place if it would be inside the player's AABB
+    AABB playerAABB = g_player->getAABB();
+    AABB blockAABB = AABB::fromBlockPos(placePos.x, placePos.y, placePos.z);
     
-    if (placePos == playerBlock || placePos == playerFeet)
+    if (playerAABB.intersects(blockAABB))
       return;  // Would place inside player
     
-    setBlockAtWorld(placePos.x, placePos.y, placePos.z, 3, *g_chunkManager);  // Place stone
+    // Place the currently selected block
+    uint8_t blockToPlace = PLACEABLE_BLOCKS[selectedBlockIndex];
+    setBlockAtWorld(placePos.x, placePos.y, placePos.z, blockToPlace, *g_chunkManager);
+  }
+}
+
+void scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+  // Ignore if ImGui wants mouse input
+  ImGuiIO& io = ImGui::GetIO();
+  if (io.WantCaptureMouse)
+    return;
+
+  // Only handle scroll when mouse is locked
+  if (!mouseLocked)
+    return;
+
+  // Scroll up = next block, scroll down = previous block
+  int numBlocks = static_cast<int>(PLACEABLE_BLOCKS.size());
+  if (yoffset > 0)
+  {
+    selectedBlockIndex = (selectedBlockIndex + 1) % numBlocks;
+  }
+  else if (yoffset < 0)
+  {
+    selectedBlockIndex = (selectedBlockIndex - 1 + numBlocks) % numBlocks;
   }
 }

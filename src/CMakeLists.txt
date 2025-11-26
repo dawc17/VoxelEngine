@@ -11,6 +11,7 @@ set(SOURCES
     Meshing.cpp
     BlockTypes.cpp
     Raycast.cpp
+    Player.cpp
 )
 
 # === Create the executable FIRST ===
