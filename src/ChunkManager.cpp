@@ -3,6 +3,7 @@
 #include "RegionManager.h"
 #include "Meshing.h"
 #include "TerrainGenerator.h"
+#include "CaveGenerator.h"
 #include <cstring>
 
 bool ChunkManager::hasChunk(int cx, int cy, int cz)
@@ -65,6 +66,7 @@ Chunk *ChunkManager::loadChunk(int cx, int cy, int cz)
   if (!loadedFromDisk)
   {
     generateTerrain(c->blocks, cx, cy, cz);
+    applyCavesToChunk(*c, DEFAULT_WORLD_SEED);
   }
 
   const int neighborOffsets[6][3] = {

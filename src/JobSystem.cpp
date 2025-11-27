@@ -1,6 +1,7 @@
 #include "JobSystem.h"
 #include "ChunkManager.h"
 #include "TerrainGenerator.h"
+#include "CaveGenerator.h"
 #include <cstring>
 #include <algorithm>
 
@@ -173,18 +174,21 @@ void JobSystem::processJob(std::unique_ptr<Job> job)
 
 void JobSystem::processGenerateJob(GenerateChunkJob* job)
 {
-    std::fill(std::begin(job->blocks), std::end(job->blocks), 0);
-    std::fill(std::begin(job->skyLight), std::end(job->skyLight), MAX_SKY_LIGHT);
+  std::fill(std::begin(job->blocks), std::end(job->blocks), 0);
+  std::fill(std::begin(job->skyLight), std::end(job->skyLight), MAX_SKY_LIGHT);
 
-    if (regionManager && regionManager->loadChunkData(job->cx, job->cy, job->cz, job->blocks))
-    {
-        job->loadedFromDisk = true;
-    }
-    else
-    {
-        generateTerrain(job->blocks, job->cx, job->cy, job->cz);
-        job->loadedFromDisk = false;
-    }
+  if (regionManager && regionManager->loadChunkData(job->cx, job->cy, job->cz, job->blocks))
+  {
+    job->loadedFromDisk = true;
+  }
+  else
+  {
+    generateTerrain(job->blocks, job->cx, job->cy, job->cz);
+    job->loadedFromDisk = false;
+
+    // Carve caves only on freshly generated chunks (not on loaded/saved ones)
+    applyCavesToBlocks(job->blocks, glm::ivec3(job->cx, job->cy, job->cz), DEFAULT_WORLD_SEED);
+  }
 }
 
 void JobSystem::processMeshJob(MeshChunkJob* job)
