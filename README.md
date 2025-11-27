@@ -1,7 +1,7 @@
 # Engine
 
 Voxel chunk playground built with modern OpenGL 4.6. Renders greedy-meshed 16x16x16 chunks using a 2D texture array sliced from `assets/textures/blocks.png` (32x32 tiles) and overlays ImGui debug stats. GLAD, ImGui, and GLM are vendored under `libs/`. Since the last README update the engine picked up a full player controller, block palette, multi-layer chunk streaming, terrain gen with trees, and basic skylight.
-<img width="2559" height="1370" alt="image" src="https://github.com/user-attachments/assets/83c4f447-f5d9-4f24-9652-7366e7e1eb76" />
+<img width="1904" height="999" alt="image" src="https://github.com/user-attachments/assets/a5f39840-a4fc-4ed3-aac1-7e9f16d4f7a1" />
 
 ## Note about AI Usage
 This readme was generated using AI. AI was also used for debugging when the developer was in absolute despair and could not for his life
