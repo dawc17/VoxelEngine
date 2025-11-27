@@ -66,7 +66,11 @@ Chunk *ChunkManager::loadChunk(int cx, int cy, int cz)
   if (!loadedFromDisk)
   {
     generateTerrain(c->blocks, cx, cy, cz);
-    applyCavesToChunk(*c, DEFAULT_WORLD_SEED);
+    
+    // Compute terrain heights for this chunk's XZ columns
+    int terrainHeights[CHUNK_SIZE * CHUNK_SIZE];
+    getTerrainHeightsForChunk(cx, cz, terrainHeights);
+    applyCavesToChunk(*c, DEFAULT_WORLD_SEED, terrainHeights);
   }
 
   const int neighborOffsets[6][3] = {

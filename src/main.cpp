@@ -37,6 +37,7 @@
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <unordered_map>
 
 using FrameClock = std::chrono::high_resolution_clock;
 using FrameDuration = std::chrono::duration<double>;
@@ -108,6 +109,70 @@ ChunkManager* g_chunkManager = nullptr;
 const std::vector<uint8_t> PLACEABLE_BLOCKS = {1, 2, 3, 4, 5, 6, 7, 8};
 int selectedBlockIndex = 2;  // Default to stone (index 2 = block ID 3)
 
+// HUD block icons - maps block ID to OpenGL texture ID
+std::unordered_map<uint8_t, GLuint> g_blockIcons;
+
+// Load a single HUD icon texture
+GLuint loadHUDIcon(const std::string& path)
+{
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    if (!data)
+    {
+        std::cerr << "Failed to load HUD icon: " << path << std::endl;
+        return 0;
+    }
+
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    
+    stbi_image_free(data);
+    return texture;
+}
+
+// Load all HUD block icons
+void loadBlockIcons(const std::string& basePath)
+{
+    // Map block IDs to their icon filenames
+    std::unordered_map<uint8_t, std::string> iconFiles = {
+        {1, "natural_dirt.png"},
+        {2, "natural_grass_block.png"},
+        {3, "masonry_cobblestone.png"},
+        {4, "natural_sand.png"},
+        {5, "log_oak.png"},
+        {6, "leaves_oak.png"},
+        {7, "transparent_glass.png"},
+        {8, "planks_oak.png"}
+    };
+
+    for (const auto& [blockId, filename] : iconFiles)
+    {
+        std::string fullPath = basePath + "/" + filename;
+        GLuint tex = loadHUDIcon(fullPath);
+        if (tex != 0)
+        {
+            g_blockIcons[blockId] = tex;
+            std::cout << "Loaded HUD icon for block " << (int)blockId << ": " << filename << std::endl;
+        }
+    }
+}
+
+// Cleanup HUD icons
+void unloadBlockIcons()
+{
+    for (auto& [id, tex] : g_blockIcons)
+    {
+        glDeleteTextures(1, &tex);
+    }
+    g_blockIcons.clear();
+}
+
 int main()
 {
   try
@@ -122,7 +187,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow *window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT,
-                                          "LearnOpenGL", NULL, NULL);
+                                          "VoxelEngine", NULL, NULL);
     if (window == NULL)
     {
       std::cout << "Failed to initialize (bruh?)" << std::endl;
@@ -237,6 +302,10 @@ int main()
 
     // Initialize block type registry
     initBlockTypes();
+
+    // Load HUD block icons
+    std::string hudIconPath = resolveTexturePath("assets/textures/hud_blocks");
+    loadBlockIcons(hudIconPath);
 
     // Selection highlight shader and geometry
     Shader selectionShader("selection.vert", "selection.frag");
@@ -772,6 +841,41 @@ int main()
           ImVec2(center.x, center.y + crosshairSize),
           crosshairColor, crosshairThickness);
 
+      // Draw selected block icon in top-right corner
+      uint8_t currentBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
+      auto iconIt = g_blockIcons.find(currentBlockId);
+      if (iconIt != g_blockIcons.end())
+      {
+          float iconSize = 128.0f;
+          float padding = 20.0f;
+          float iconX = fbWidth - iconSize - padding;
+          float iconY = padding;
+          
+          // Draw background box
+          float bgPadding = 8.0f;
+          drawList->AddRectFilled(
+              ImVec2(iconX - bgPadding, iconY - bgPadding),
+              ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
+              IM_COL32(0, 0, 0, 150),
+              8.0f  // rounded corners
+          );
+          drawList->AddRect(
+              ImVec2(iconX - bgPadding, iconY - bgPadding),
+              ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
+              IM_COL32(255, 255, 255, 100),
+              8.0f,
+              0,
+              2.0f
+          );
+          
+          // Draw the block icon
+          drawList->AddImage(
+              (ImTextureID)(intptr_t)iconIt->second,
+              ImVec2(iconX, iconY),
+              ImVec2(iconX + iconSize, iconY + iconSize)
+          );
+      }
+
       ImGui::Render();
       ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -812,6 +916,9 @@ int main()
     glDeleteBuffers(1, &selectionVBO);
     glDeleteBuffers(1, &selectionEBO);
     selectionShader.Delete();
+
+    // Cleanup HUD icons
+    unloadBlockIcons();
 
     ImGui_ImplGlfw_Shutdown();
     ImGui_ImplOpenGL3_Shutdown();

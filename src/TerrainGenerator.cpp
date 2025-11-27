@@ -179,3 +179,23 @@ void generateTerrain(BlockID* blocks, int cx, int cy, int cz)
     }
 }
 
+int getTerrainHeightAt(int worldX, int worldZ)
+{
+    return static_cast<int>(std::round(getTerrainHeight(
+        static_cast<float>(worldX), static_cast<float>(worldZ))));
+}
+
+void getTerrainHeightsForChunk(int cx, int cz, int* outHeights)
+{
+    int baseX = cx * CHUNK_SIZE;
+    int baseZ = cz * CHUNK_SIZE;
+    
+    for (int z = 0; z < CHUNK_SIZE; ++z)
+    {
+        for (int x = 0; x < CHUNK_SIZE; ++x)
+        {
+            outHeights[z * CHUNK_SIZE + x] = getTerrainHeightAt(baseX + x, baseZ + z);
+        }
+    }
+}
+

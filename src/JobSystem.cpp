@@ -186,8 +186,12 @@ void JobSystem::processGenerateJob(GenerateChunkJob* job)
     generateTerrain(job->blocks, job->cx, job->cy, job->cz);
     job->loadedFromDisk = false;
 
+    // Compute terrain heights for this chunk's XZ columns
+    int terrainHeights[CHUNK_SIZE * CHUNK_SIZE];
+    getTerrainHeightsForChunk(job->cx, job->cz, terrainHeights);
+    
     // Carve caves only on freshly generated chunks (not on loaded/saved ones)
-    applyCavesToBlocks(job->blocks, glm::ivec3(job->cx, job->cy, job->cz), DEFAULT_WORLD_SEED);
+    applyCavesToBlocks(job->blocks, glm::ivec3(job->cx, job->cy, job->cz), DEFAULT_WORLD_SEED, terrainHeights);
   }
 }
 

@@ -133,39 +133,67 @@ static const CaveNoiseSet& getNoise(uint32_t seed)
   return g_noiseCache;
 }
 
-float caveDensity(int wx, int wy, int wz, const glm::ivec3& chunkPos, uint32_t seed, const CaveConfig& cfg)
+float caveDensity(int wx, int wy, int wz, int terrainHeight, uint32_t seed, const CaveConfig& cfg)
 {
-  (void)chunkPos; // included for signature clarity
   const CaveNoiseSet& noise = getNoise(seed);
 
   float sx = static_cast<float>(wx);
   float sy = static_cast<float>(wy);
   float sz = static_cast<float>(wz);
 
-  float shape = noise.shape.fbm(sx, sy, sz, cfg.shapeOctaves, cfg.shapeGain, cfg.shapeFrequency);
-  float detail = noise.detail.fbm(sx, sy, sz, cfg.detailOctaves, cfg.detailGain, cfg.detailFrequency);
+  // Don't carve caves too close to surface or below minimum
+  if (wy < cfg.minCaveHeight) return -1.0f;
+  if (wy > terrainHeight - cfg.surfaceMargin) return -1.0f;
 
-  float density = shape - cfg.baseThreshold + detail * cfg.detailAmplitude;
-
-  // Fade out caves near the top of the world to avoid floating entrances.
-  if (sy > cfg.verticalFadeStart)
-  {
-    if (sy >= cfg.verticalFadeEnd)
-    {
-      density = 0.0f;
-    }
-    else
-    {
-      float t = (sy - cfg.verticalFadeStart) / (cfg.verticalFadeEnd - cfg.verticalFadeStart);
-      density *= (1.0f - t);
+  // === CHEESE CAVES (large open caverns) ===
+  // Use 3D noise - carve where noise value is below threshold
+  float cheeseNoise = noise.shape.fbm(
+    sx * cfg.cheeseFrequency,
+    sy * cfg.cheeseFrequency * 0.8f,  // Slightly squashed vertically for wider caves
+    sz * cfg.cheeseFrequency,
+    cfg.cheeseOctaves,
+    cfg.cheeseGain,
+    1.0f
+  );
+  
+  bool isCheeseCave = cheeseNoise < cfg.cheeseThreshold;
+  
+  // === SPAGHETTI TUNNELS (connecting passages) ===
+  float yStretched = sy * cfg.spaghettiYStretch;
+  
+  float spaghetti1 = noise.detail.noise(
+    sx * cfg.spaghettiFrequency,
+    yStretched * cfg.spaghettiFrequency,
+    sz * cfg.spaghettiFrequency
+  );
+  
+  float spaghetti2 = noise.veg.noise(
+    sx * cfg.spaghettiFrequency + 500.0f,
+    yStretched * cfg.spaghettiFrequency,
+    sz * cfg.spaghettiFrequency + 500.0f
+  );
+  
+  // Tunnel where both are near zero
+  bool isSpaghettiCave = (std::abs(spaghetti1) < cfg.spaghettiThreshold) && 
+                         (std::abs(spaghetti2) < cfg.spaghettiThreshold);
+  
+  // Combine both cave types
+  bool isCave = isCheeseCave || isSpaghettiCave;
+  
+  if (!isCave) return -1.0f;
+  
+  // Smooth transition near surface margin
+  float distToSurface = static_cast<float>(terrainHeight - cfg.surfaceMargin - wy);
+  if (distToSurface < 5.0f && distToSurface > 0.0f) {
+    float fade = distToSurface / 5.0f;
+    // Reduce cave probability near surface
+    float fadeNoise = noise.detail.noise(sx * 0.1f, sy * 0.1f, sz * 0.1f);
+    if (fadeNoise > fade * 2.0f - 1.0f) {
+      return -1.0f;  // No cave
     }
   }
 
-  // Floor/ceiling jitter
-  float jitter = noise.detail.noise(sx * cfg.detailFrequency * 0.5f, sy * 0.05f, sz * cfg.detailFrequency * 0.5f) * cfg.floorJitterAmp;
-  density += jitter;
-
-  return density;
+  return 1.0f; // Positive = carve
 }
 
 bool caveVegetationMask(int wx, int wy, int wz, uint32_t seed, const CaveConfig& cfg)
@@ -175,7 +203,8 @@ bool caveVegetationMask(int wx, int wy, int wz, uint32_t seed, const CaveConfig&
   return n > cfg.vegThreshold;
 }
 
-void applyCavesToBlocks(BlockID* blocks, const glm::ivec3& chunkPos, uint32_t worldSeed, const CaveConfig& cfg, bool* outVegetationMask)
+void applyCavesToBlocks(BlockID* blocks, const glm::ivec3& chunkPos, uint32_t worldSeed, 
+                        const int* terrainHeights, const CaveConfig& cfg, bool* outVegetationMask)
 {
   const int baseX = chunkPos.x * CHUNK_SIZE;
   const int baseY = chunkPos.y * CHUNK_SIZE;
@@ -183,15 +212,18 @@ void applyCavesToBlocks(BlockID* blocks, const glm::ivec3& chunkPos, uint32_t wo
 
   for (int z = 0; z < CHUNK_SIZE; ++z)
   {
-    for (int y = 0; y < CHUNK_SIZE; ++y)
+    for (int x = 0; x < CHUNK_SIZE; ++x)
     {
-      for (int x = 0; x < CHUNK_SIZE; ++x)
+      // Get terrain height for this column
+      int terrainHeight = terrainHeights ? terrainHeights[z * CHUNK_SIZE + x] : 60;
+      
+      for (int y = 0; y < CHUNK_SIZE; ++y)
       {
         int wx = baseX + x;
         int wy = baseY + y;
         int wz = baseZ + z;
 
-        float d = caveDensity(wx, wy, wz, chunkPos, worldSeed, cfg);
+        float d = caveDensity(wx, wy, wz, terrainHeight, worldSeed, cfg);
         int i = blockIndex(x, y, z);
 
         if (d > 0.0f)
@@ -205,7 +237,7 @@ void applyCavesToBlocks(BlockID* blocks, const glm::ivec3& chunkPos, uint32_t wo
           bool isFloor = false;
           if (y + 1 < CHUNK_SIZE)
           {
-            float above = caveDensity(wx, wy + 1, wz, chunkPos, worldSeed, cfg);
+            float above = caveDensity(wx, wy + 1, wz, terrainHeight, worldSeed, cfg);
             if (above > 0.0f)
               isFloor = true;
           }
@@ -214,4 +246,10 @@ void applyCavesToBlocks(BlockID* blocks, const glm::ivec3& chunkPos, uint32_t wo
       }
     }
   }
+}
+
+void applyCavesToChunk(Chunk& c, uint32_t worldSeed, const int* terrainHeights, 
+                       const CaveConfig& cfg, bool* outVegetationMask)
+{
+  applyCavesToBlocks(c.blocks, c.position, worldSeed, terrainHeights, cfg, outVegetationMask);
 }
