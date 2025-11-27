@@ -40,10 +40,13 @@ Chunk *ChunkManager::getChunk(int cx, int cy, int cz)
 
 Chunk *ChunkManager::loadChunk(int cx, int cy, int cz)
 {
+  ChunkCoord key{cx, cy, cz};
+  if (savingChunks.count(key) > 0)
+    return nullptr;  // Wait for in-flight save to finish before reloading
+
   if (hasChunk(cx, cy, cz))
     return getChunk(cx, cy, cz);
 
-  ChunkCoord key{cx, cy, cz};
   auto [it, inserted] = chunks.emplace(key, std::make_unique<Chunk>());
   (void)inserted;
   Chunk *c = it->second.get();
@@ -106,7 +109,7 @@ void ChunkManager::enqueueLoadChunk(int cx, int cy, int cz)
   }
 
   ChunkCoord key{cx, cy, cz};
-  if (hasChunk(cx, cy, cz) || loadingChunks.count(key) > 0)
+  if (hasChunk(cx, cy, cz) || loadingChunks.count(key) > 0 || savingChunks.count(key) > 0)
     return;
 
   loadingChunks.insert(key);
@@ -143,7 +146,8 @@ void ChunkManager::enqueueSaveAndUnload(int cx, int cy, int cz)
     job->cz = cz;
     std::memcpy(job->blocks, chunk->blocks, CHUNK_VOLUME * sizeof(BlockID));
 
-    jobSystem->enqueue(std::move(job));
+    // Prioritize saves so they finish before a reload can race in
+    jobSystem->enqueueHighPriority(std::move(job));
   }
 
   chunks.erase(key);
