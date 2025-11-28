@@ -121,7 +121,7 @@ void initBlockTypes()
     g_blockTypes[8].faceRotation[4] = 2;
     g_blockTypes[8].faceRotation[5] = 2;
 
-    // Block 9: Water
+    // Block 9: Water Source
     g_blockTypes[9].solid = false;
     g_blockTypes[9].transparent = true;
     g_blockTypes[9].connectsToSame = true;
@@ -130,6 +130,21 @@ void initBlockTypes()
     {
         g_blockTypes[9].faceTexture[i] = 863;
         g_blockTypes[9].faceRotation[i] = 0;
+    }
+
+    // Blocks 10-17: Flowing Water (levels 7 down to 0)
+    for (int level = 0; level < 8; level++)
+    {
+        int blockId = 10 + level;
+        g_blockTypes[blockId].solid = false;
+        g_blockTypes[blockId].transparent = true;
+        g_blockTypes[blockId].connectsToSame = true;
+        g_blockTypes[blockId].isLiquid = true;
+        for (int i = 0; i < 6; i++)
+        {
+            g_blockTypes[blockId].faceTexture[i] = 863;
+            g_blockTypes[blockId].faceRotation[i] = 0;
+        }
     }
 
     g_defaultBlockTypes = g_blockTypes;

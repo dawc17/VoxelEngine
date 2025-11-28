@@ -1,6 +1,7 @@
 #include "Meshing.h"
 #include "BlockTypes.h"
 #include "ChunkManager.h"
+#include "WaterSimulator.h"
 #include <glad/glad.h>
 #include <cstddef>
 #include <queue>
@@ -21,6 +22,14 @@ static const Vertex *FACE_TABLE[6] = {
 static const uint32_t FACE_INDICES[6] = {
     0, 1, 2,
     0, 2, 3};
+
+static float getWaterHeight(BlockID block)
+{
+    if (block == WATER_SOURCE) return 1.0f;
+    if (!isWater(block)) return 0.0f;
+    uint8_t level = getWaterLevel(block);
+    return static_cast<float>(level) / 8.0f;
+}
 
 static void buildGreedyMesh(
     const BlockID* blocks,
@@ -47,6 +56,7 @@ static void buildGreedyMesh(
 
     BlockID mask[CHUNK_SIZE][CHUNK_SIZE];
     uint8_t lightMask[CHUNK_SIZE][CHUNK_SIZE];
+    float heightMask[CHUNK_SIZE][CHUNK_SIZE];
 
     for (int i = 0; i < CHUNK_SIZE; i++)
     {
@@ -66,6 +76,7 @@ static void buildGreedyMesh(
           {
             mask[j][k] = 0;
             lightMask[j][k] = 0;
+            heightMask[j][k] = 1.0f;
             continue;
           }
 
@@ -74,22 +85,56 @@ static void buildGreedyMesh(
           bool isNeighborLiquid = g_blockTypes[neighbor].isLiquid;
 
           bool showFace = false;
+          float waterHeight = 1.0f;
+
           if (current != 0)
           {
             if (liquidsOnly)
             {
-              if (neighbor == 0 || (!isNeighborLiquid && g_blockTypes[neighbor].transparent))
+              if (dir == 2 && !isNeighborLiquid)
               {
                 showFace = true;
+                waterHeight = getWaterHeight(current);
+                
+                BlockID above = getBlock(pos.x, pos.y + 1, pos.z);
+                if (isWater(above))
+                {
+                    showFace = false;
+                }
               }
-              else if (current != neighbor)
+              else if (dir != 2 && dir != 3)
               {
-                showFace = true;
+                if (!isNeighborLiquid && neighbor == 0)
+                {
+                  showFace = true;
+                  waterHeight = getWaterHeight(current);
+                }
+                else if (isNeighborLiquid)
+                {
+                  uint8_t currentLevel = getWaterLevel(current);
+                  uint8_t neighborLevel = getWaterLevel(neighbor);
+                  if (neighborLevel < currentLevel)
+                  {
+                    showFace = true;
+                    waterHeight = getWaterHeight(current);
+                  }
+                }
+              }
+              else if (dir == 3)
+              {
+                if (!isNeighborLiquid && !g_blockTypes[neighbor].solid)
+                {
+                  showFace = true;
+                }
               }
             }
             else
             {
               if (neighbor == 0)
+              {
+                showFace = true;
+              }
+              else if (isNeighborLiquid)
               {
                 showFace = true;
               }
@@ -109,6 +154,7 @@ static void buildGreedyMesh(
 
           mask[j][k] = showFace ? current : 0;
           lightMask[j][k] = showFace ? getSkyLight(npos.x, npos.y, npos.z) : 0;
+          heightMask[j][k] = waterHeight;
         }
       }
 
@@ -120,25 +166,29 @@ static void buildGreedyMesh(
           {
             BlockID type = mask[j][k];
             uint8_t light = lightMask[j][k];
+            float height = heightMask[j][k];
             int w = 1;
             int h = 1;
 
-            while (k + w < CHUNK_SIZE && mask[j][k + w] == type && lightMask[j][k + w] == light)
-              w++;
-
-            bool done = false;
-            while (j + h < CHUNK_SIZE)
+            if (!liquidsOnly)
             {
-              for (int dx = 0; dx < w; dx++)
+              while (k + w < CHUNK_SIZE && mask[j][k + w] == type && lightMask[j][k + w] == light)
+                w++;
+
+              bool done = false;
+              while (j + h < CHUNK_SIZE)
               {
-                if (mask[j + h][k + dx] != type || lightMask[j + h][k + dx] != light)
+                for (int dx = 0; dx < w; dx++)
                 {
-                  done = true;
-                  break;
+                  if (mask[j + h][k + dx] != type || lightMask[j + h][k + dx] != light)
+                  {
+                    done = true;
+                    break;
+                  }
                 }
+                if (done) break;
+                h++;
               }
-              if (done) break;
-              h++;
             }
 
             const Vertex *face = FACE_TABLE[dir];
@@ -155,6 +205,7 @@ static void buildGreedyMesh(
             for (int vIdx = 0; vIdx < 4; vIdx++)
             {
               Vertex vtx = face[vIdx];
+              glm::vec3 originalPos = vtx.pos;
               glm::vec3 finalPos;
 
               finalPos[axis] = static_cast<float>(i + axisOffset);
@@ -165,10 +216,29 @@ static void buildGreedyMesh(
               if (vtx.uv.y > 0.5f) finalPos[v] = static_cast<float>(j + h);
               else finalPos[v] = static_cast<float>(j);
 
+              bool isTopVertex = originalPos.y > 0.5f;
+              
+              if (liquidsOnly && dir == 2)
+              {
+                finalPos.y = static_cast<float>(i) + height - 0.1f;
+              }
+              else if (liquidsOnly && (dir == 0 || dir == 1 || dir == 4 || dir == 5))
+              {
+                if (isTopVertex)
+                {
+                  finalPos.y = static_cast<float>(i) + height - 0.1f;
+                }
+              }
+
               vtx.pos = finalPos;
 
               float localU = (vtx.uv.x > 0.5f) ? static_cast<float>(w) : 0.0f;
               float localV = (vtx.uv.y > 0.5f) ? static_cast<float>(h) : 0.0f;
+
+              if (liquidsOnly && (dir == 0 || dir == 1 || dir == 4 || dir == 5))
+              {
+                localV = isTopVertex ? height : 0.0f;
+              }
 
               switch (rotation)
               {

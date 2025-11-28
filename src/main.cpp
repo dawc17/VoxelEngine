@@ -19,6 +19,7 @@
 #include "Player.h"
 #include "JobSystem.h"
 #include "RegionManager.h"
+#include "WaterSimulator.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -106,9 +107,14 @@ bool enableCaustics = true;
 bool isUnderwater = false;
 const int SEA_LEVEL = 116;
 
-// Global pointers for mouse callback
+bool enableWaterSimulation = true;
+int waterTickRate = 5;
+float waterTickAccumulator = 0.0f;
+const float WATER_TICK_INTERVAL = 0.05f;
+
 Player* g_player = nullptr;
 ChunkManager* g_chunkManager = nullptr;
+WaterSimulator* g_waterSimulator = nullptr;
 
 const std::vector<uint8_t> PLACEABLE_BLOCKS = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 int selectedBlockIndex = 2;  // Default to stone (index 2 = block ID 3)
@@ -405,8 +411,12 @@ int main()
     jobSystem.start(numWorkers);
     std::cout << "Started job system with " << numWorkers << " worker threads" << std::endl;
 
+    WaterSimulator waterSimulator;
+    waterSimulator.setChunkManager(&chunkManager);
+
     g_player = &player;
     g_chunkManager = &chunkManager;
+    g_waterSimulator = &waterSimulator;
 
     // Track selected block
     std::optional<RaycastHit> selectedBlock;
@@ -590,6 +600,16 @@ int main()
 
       chunkManager.update();
 
+      if (enableWaterSimulation)
+      {
+        waterTickAccumulator += deltaTime;
+        while (waterTickAccumulator >= WATER_TICK_INTERVAL)
+        {
+          waterSimulator.tick();
+          waterTickAccumulator -= WATER_TICK_INTERVAL;
+        }
+      }
+
       for (int dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++)
       {
         for (int dz = -LOAD_RADIUS; dz <= LOAD_RADIUS; dz++)
@@ -700,10 +720,9 @@ int main()
       glEnable(GL_BLEND);
       glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
       glDepthMask(GL_FALSE);
-      glEnable(GL_POLYGON_OFFSET_FILL);
-      glPolygonOffset(1.0f, 1.0f);
 
       waterShader.Activate();
+      glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
 
       float gameTime = static_cast<float>(glfwGetTime());
       glUniform1f(waterTimeLoc, gameTime);
@@ -733,7 +752,6 @@ int main()
 
       glDepthMask(GL_TRUE);
       glDisable(GL_BLEND);
-      glDisable(GL_POLYGON_OFFSET_FILL);
 
       // Raycast for block selection
       selectedBlock = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
@@ -861,6 +879,12 @@ int main()
             ImGui::Separator();
             ImGui::Text("WATER");
             ImGui::Checkbox("Caustics", &enableCaustics);
+            ImGui::Checkbox("Water Physics", &enableWaterSimulation);
+            if (enableWaterSimulation)
+            {
+              ImGui::SliderInt("Water Tick Rate", &waterTickRate, 1, 20);
+              waterSimulator.setTickRate(waterTickRate);
+            }
             if (isUnderwater)
             {
               ImGui::TextColored(ImVec4(0.2f, 0.6f, 1.0f, 1.0f), "UNDERWATER");
@@ -1175,24 +1199,32 @@ void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
 
   if (button == GLFW_MOUSE_BUTTON_LEFT)
   {
-    // Break block (set to air)
+    uint8_t oldBlock = getBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, *g_chunkManager);
     setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *g_chunkManager);
+    
+    if (g_waterSimulator)
+    {
+      g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, oldBlock, 0);
+    }
   }
   else if (button == GLFW_MOUSE_BUTTON_RIGHT)
   {
-    // Place block (on the face we hit)
     glm::ivec3 placePos = hit->blockPos + hit->normal;
     
-    // Don't place if it would be inside the player's AABB
     AABB playerAABB = g_player->getAABB();
     AABB blockAABB = AABB::fromBlockPos(placePos.x, placePos.y, placePos.z);
     
     if (playerAABB.intersects(blockAABB))
-      return;  // Would place inside player
+      return;
     
-    // Place the currently selected block
+    uint8_t oldBlock = getBlockAtWorld(placePos.x, placePos.y, placePos.z, *g_chunkManager);
     uint8_t blockToPlace = PLACEABLE_BLOCKS[selectedBlockIndex];
     setBlockAtWorld(placePos.x, placePos.y, placePos.z, blockToPlace, *g_chunkManager);
+    
+    if (g_waterSimulator)
+    {
+      g_waterSimulator->onBlockChanged(placePos.x, placePos.y, placePos.z, oldBlock, blockToPlace);
+    }
   }
 }
 

@@ -15,6 +15,7 @@ set(SOURCES
     JobSystem.cpp
     TerrainGenerator.cpp
     CaveGenerator.cpp
+    WaterSimulator.cpp
 )
 
 add_executable(VoxelEngine ${SOURCES})
@@ -28,9 +29,11 @@ set(SHADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/water.frag
 )
 
-add_custom_command(TARGET VoxelEngine POST_BUILD
+add_custom_target(copy_shaders ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:VoxelEngine>/shaders"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_FILES} "$<TARGET_FILE_DIR:VoxelEngine>/shaders/"
+    DEPENDS ${SHADER_FILES}
+    COMMENT "Copying shader files"
 )
 
 add_custom_command(TARGET VoxelEngine POST_BUILD
