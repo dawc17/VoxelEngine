@@ -100,6 +100,7 @@ float worldTime = 0.5f;
 float dayLength = 600.0f;
 bool autoTimeProgression = true;
 float fogDensity = 0.008f;
+int renderDistance = 4;
 
 // Global pointers for mouse callback
 Player* g_player = nullptr;
@@ -553,7 +554,7 @@ int main()
       int cx = floor(player.position.x / CHUNK_SIZE);
       int cz = floor(player.position.z / CHUNK_SIZE);
 
-      const int LOAD_RADIUS = 4;
+      const int LOAD_RADIUS = renderDistance;
       const int UNLOAD_RADIUS = LOAD_RADIUS + 2;
       const int CHUNK_HEIGHT_MIN = 0;
       const int CHUNK_HEIGHT_MAX = 4;
@@ -705,77 +706,96 @@ int main()
         if (mouseLocked)
           debugFlags |= ImGuiWindowFlags_NoInputs;
         ImGui::Begin("Debug", nullptr, debugFlags);
-        ImGui::Text("FPS: %.1f", fps);
-        ImGui::Text("Position: (%.2f, %.2f, %.2f)",
-                    player.position.x, player.position.y, player.position.z);
-        ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
-                    player.velocity.x, player.velocity.y, player.velocity.z);
-        ImGui::Text("Yaw: %.1f, Pitch: %.1f", player.yaw, player.pitch);
-        ImGui::Text("On Ground: %s", player.onGround ? "Yes" : "No");
-
-        int chunkX = static_cast<int>(floor(player.position.x / 16.0f));
-        int chunkZ = static_cast<int>(floor(player.position.z / 16.0f));
-        ImGui::Text("Chunk: (%d, %d)", chunkX, chunkZ);
-
-        if (selectedBlock.has_value())
+        
+        if (ImGui::BeginTabBar("DebugTabs"))
         {
-          ImGui::Separator();
-          ImGui::Text("Selected Block: (%d, %d, %d)", 
-              selectedBlock->blockPos.x, 
-              selectedBlock->blockPos.y, 
-              selectedBlock->blockPos.z);
-          uint8_t blockId = getBlockAtWorld(
-              selectedBlock->blockPos.x, 
-              selectedBlock->blockPos.y, 
-              selectedBlock->blockPos.z, 
-              chunkManager);
-          ImGui::Text("Block ID: %d", blockId);
-          ImGui::Text("Distance: %.2f", selectedBlock->distance);
+          if (ImGui::BeginTabItem("Info"))
+          {
+            ImGui::Text("FPS: %.1f", fps);
+            ImGui::Text("Position: (%.2f, %.2f, %.2f)",
+                        player.position.x, player.position.y, player.position.z);
+            ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
+                        player.velocity.x, player.velocity.y, player.velocity.z);
+            ImGui::Text("Yaw: %.1f, Pitch: %.1f", player.yaw, player.pitch);
+            ImGui::Text("On Ground: %s", player.onGround ? "Yes" : "No");
+
+            int chunkX = static_cast<int>(floor(player.position.x / 16.0f));
+            int chunkZ = static_cast<int>(floor(player.position.z / 16.0f));
+            ImGui::Text("Chunk: (%d, %d)", chunkX, chunkZ);
+
+            if (selectedBlock.has_value())
+            {
+              ImGui::Separator();
+              ImGui::Text("Selected Block: (%d, %d, %d)", 
+                  selectedBlock->blockPos.x, 
+                  selectedBlock->blockPos.y, 
+                  selectedBlock->blockPos.z);
+              uint8_t blockId = getBlockAtWorld(
+                  selectedBlock->blockPos.x, 
+                  selectedBlock->blockPos.y, 
+                  selectedBlock->blockPos.z, 
+                  chunkManager);
+              ImGui::Text("Block ID: %d", blockId);
+              ImGui::Text("Distance: %.2f", selectedBlock->distance);
+            }
+            else
+            {
+              ImGui::Separator();
+              ImGui::Text("No block selected");
+            }
+
+            ImGui::Separator();
+            
+            const char* blockNames[] = {"Air", "Dirt", "Grass", "Stone", "Sand", "Oak Log", "Oak Leaves", "Glass", "Oak Planks"};
+            uint8_t selectedBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
+            ImGui::Text("Selected: %s (ID: %d)", blockNames[selectedBlockId], selectedBlockId);
+            ImGui::Text("Scroll wheel to change block");
+            
+            ImGui::Separator();
+            ImGui::Text("LMB: Break block");
+            ImGui::Text("RMB: Place block");
+            ImGui::Text("Space: Jump");
+
+            ImGui::Separator();
+            ImGui::Text("Chunks loaded: %zu", chunkManager.chunks.size());
+            ImGui::Text("Chunks loading: %zu", chunkManager.loadingChunks.size());
+            ImGui::Text("Chunks meshing: %zu", chunkManager.meshingChunks.size());
+            ImGui::Text("Jobs pending: %zu", jobSystem.pendingJobCount());
+            
+            ImGui::EndTabItem();
+          }
+          
+          if (ImGui::BeginTabItem("Settings"))
+          {
+            ImGui::SliderInt("Render Distance", &renderDistance, 2, 16);
+            
+            ImGui::Separator();
+            ImGui::Checkbox("Wireframe mode", &wireframeMode);
+            ImGui::Checkbox("Noclip mode", &player.noclip);
+            ImGui::Checkbox("Async Loading", &useAsyncLoading);
+            ImGui::SliderFloat("Move Speed", &cameraSpeed, 0.0f, 20.0f);
+
+            ImGui::Separator();
+            ImGui::InputInt("Max FPS", &targetFps);
+            if (targetFps < 10) targetFps = 10;
+            if (targetFps > 1000) targetFps = 1000;
+
+            ImGui::Separator();
+            ImGui::Text("DAY/NIGHT CYCLE");
+            ImGui::Checkbox("Auto Time", &autoTimeProgression);
+            ImGui::SliderFloat("Time of Day", &worldTime, 0.0f, 1.0f, "%.2f");
+            ImGui::SliderFloat("Day Length (s)", &dayLength, 60.0f, 1200.0f);
+            ImGui::SliderFloat("Fog Density", &fogDensity, 0.001f, 0.05f, "%.4f");
+            
+            const char* timeNames[] = {"Midnight", "Dawn", "Morning", "Noon", "Afternoon", "Dusk", "Evening", "Night"};
+            int timeIndex = static_cast<int>(worldTime * 8.0f) % 8;
+            ImGui::Text("Current: %s (Sun: %.0f%%)", timeNames[timeIndex], rawSunBrightness * 100.0f);
+            
+            ImGui::EndTabItem();
+          }
+          
+          ImGui::EndTabBar();
         }
-        else
-        {
-          ImGui::Separator();
-          ImGui::Text("No block selected");
-        }
-
-        ImGui::Separator();
-        
-        const char* blockNames[] = {"Air", "Dirt", "Grass", "Stone", "Sand", "Oak Log", "Oak Leaves", "Glass", "Oak Planks"};
-        uint8_t selectedBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
-        ImGui::Text("Selected: %s (ID: %d)", blockNames[selectedBlockId], selectedBlockId);
-        ImGui::Text("Scroll wheel to change block");
-        
-        ImGui::Separator();
-        ImGui::Text("LMB: Break block");
-        ImGui::Text("RMB: Place block");
-        ImGui::Text("Space: Jump");
-
-        ImGui::Checkbox("Wireframe mode", &wireframeMode);
-        ImGui::Checkbox("Noclip mode", &player.noclip);
-        ImGui::Checkbox("Async Loading", &useAsyncLoading);
-        ImGui::SliderFloat("Move Speed", &cameraSpeed, 0.0f, 20.0f);
-
-        ImGui::Separator();
-        ImGui::InputInt("Max FPS", &targetFps);
-        if (targetFps < 10) targetFps = 10;
-        if (targetFps > 1000) targetFps = 1000;
-
-        ImGui::Separator();
-        ImGui::Text("Chunks loaded: %zu", chunkManager.chunks.size());
-        ImGui::Text("Chunks loading: %zu", chunkManager.loadingChunks.size());
-        ImGui::Text("Chunks meshing: %zu", chunkManager.meshingChunks.size());
-        ImGui::Text("Jobs pending: %zu", jobSystem.pendingJobCount());
-
-        ImGui::Separator();
-        ImGui::Text("DAY/NIGHT CYCLE");
-        ImGui::Checkbox("Auto Time", &autoTimeProgression);
-        ImGui::SliderFloat("Time of Day", &worldTime, 0.0f, 1.0f, "%.2f");
-        ImGui::SliderFloat("Day Length (s)", &dayLength, 60.0f, 1200.0f);
-        ImGui::SliderFloat("Fog Density", &fogDensity, 0.001f, 0.05f, "%.4f");
-        
-        const char* timeNames[] = {"Midnight", "Dawn", "Morning", "Noon", "Afternoon", "Dusk", "Evening", "Night"};
-        int timeIndex = static_cast<int>(worldTime * 8.0f) % 8;
-        ImGui::Text("Current: %s (Sun: %.0f%%)", timeNames[timeIndex], rawSunBrightness * 100.0f);
 
         ImGui::End();
 

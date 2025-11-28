@@ -62,3 +62,4 @@ Makefile
 
 AGENTS.md
 /saves
+/.cache
