@@ -31,9 +31,8 @@ static float getWaterHeightForMesh(BlockID block)
 
 static float getWaterCornerHeight(BlockGetter getBlock, int cornerX, int cornerY, int cornerZ)
 {
-    float maxHeight = 0.0f;
-    int waterCount = 0;
-    int dropCount = 0;
+    float totalHeight = 0.0f;
+    int sampleCount = 0;
     
     for (int dx = -1; dx <= 0; dx++)
     {
@@ -43,45 +42,32 @@ static float getWaterCornerHeight(BlockGetter getBlock, int cornerX, int cornerY
             int bz = cornerZ + dz;
             
             BlockID block = getBlock(bx, cornerY, bz);
+            BlockID above = getBlock(bx, cornerY + 1, bz);
+            
             if (isWater(block))
             {
-                BlockID above = getBlock(bx, cornerY + 1, bz);
                 if (isWater(above))
                 {
-                    return 1.0f;
+                    totalHeight += 1.0f;
                 }
-                
-                float h = getWaterHeightForMesh(block);
-                if (h > maxHeight)
-                    maxHeight = h;
-                waterCount++;
-            }
-            else if (block == 0)
-            {
-                BlockID below = getBlock(bx, cornerY - 1, bz);
-                if (isWater(below))
+                else
                 {
-                    dropCount++;
+                    totalHeight += getWaterHeightForMesh(block);
                 }
+                sampleCount++;
+            }
+            else if (block == 0 || !g_blockTypes[block].solid)
+            {
+                totalHeight += 0.0f;
+                sampleCount++;
             }
         }
     }
     
-    if (waterCount == 0)
+    if (sampleCount == 0)
         return 0.0f;
     
-    if (dropCount > 0)
-    {
-        if (dropCount >= 3)
-            return 0.05f;
-        if (dropCount >= 2)
-            return 0.15f;
-        if (waterCount == 1)
-            return 0.2f;
-        return maxHeight * 0.5f;
-    }
-    
-    return maxHeight;
+    return totalHeight / static_cast<float>(sampleCount);
 }
 
 static void buildGreedyMesh(
