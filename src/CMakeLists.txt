@@ -30,6 +30,8 @@ set(SHADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/selection.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/water.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/water.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/particle.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/particle.frag
 )
 
 add_custom_target(copy_shaders ALL
