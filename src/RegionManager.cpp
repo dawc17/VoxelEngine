@@ -433,6 +433,7 @@ bool RegionManager::loadPlayerData(PlayerData& outData)
         outData.timeOfDay = v1.timeOfDay;
         outData.health = 20.0f;
         outData.hunger = 20.0f;
+        outData.gamemode = 0;
         return true;
     }
 

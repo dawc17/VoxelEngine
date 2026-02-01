@@ -46,6 +46,9 @@ void updateSurvival(Player& player, float dt, bool isUnderwater)
     if (player.isDead)
         return;
 
+    if (player.gamemode == Gamemode::Creative)
+        return;
+
     player.hunger = std::clamp(player.hunger - dt * HUNGER_DRAIN_PER_SEC, 0.0f, MAX_HUNGER);
 
     if (player.onGround)

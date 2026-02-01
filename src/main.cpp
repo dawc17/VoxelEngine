@@ -259,6 +259,7 @@ int main()
       worldTime = savedPlayer.timeOfDay;
       player.health = savedPlayer.health;
       player.hunger = savedPlayer.hunger;
+      player.gamemode = static_cast<Gamemode>(savedPlayer.gamemode);
       player.isDead = false;
       std::cout << "Loaded player position: (" << savedPlayer.x << ", " << savedPlayer.y << ", " << savedPlayer.z << ")" << std::endl;
     }
@@ -932,6 +933,7 @@ int main()
     playerToSave.timeOfDay = worldTime;
     playerToSave.health = player.health;
     playerToSave.hunger = player.hunger;
+    playerToSave.gamemode = static_cast<int32_t>(player.gamemode);
     regionManager.savePlayerData(playerToSave);
     std::cout << "Player position saved" << std::endl;
 

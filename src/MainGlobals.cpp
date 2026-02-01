@@ -216,7 +216,28 @@ void executeCommand(const std::string& input, Player& player)
 
   if (cmd == "/gamemode")
   {
-    pushChatLine("gamemode placeholder kurwa im lazy");
+    std::string arg;
+    iss >> arg;
+
+    if (arg == "creative" || arg == "1")
+    {
+      player.gamemode = Gamemode::Creative;
+      player.health = 20.0f;
+      player.hunger = 20.0f;
+      player.isDead = false;
+      pushChatLine("gamemode creative");
+      return;
+    }
+
+    if (arg == "survival" || arg == "0")
+    {
+      player.gamemode = Gamemode::Survival;
+      player.noclip = false;
+      pushChatLine("gamemode survival");
+      return;
+    }
+
+    pushChatLine("usage: /gamemode survival | creative | 0 | 1");
     return;
   }
 

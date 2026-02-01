@@ -23,6 +23,12 @@ struct AABB
   static AABB fromBlockPos(int x, int y, int z);
 };
 
+enum class Gamemode
+{
+  Survival = 0,
+  Creative = 1
+};
+
 struct Player
 {
   glm::vec3 position;  // Feet position (bottom-center of AABB)
@@ -32,7 +38,8 @@ struct Player
   float pitch;
   
   bool onGround;
-  bool noclip;  // For debugging - disables collision
+  bool noclip;  
+  Gamemode gamemode;
 
   float health;
   float hunger;

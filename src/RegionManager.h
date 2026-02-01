@@ -67,6 +67,7 @@ struct PlayerData
     float timeOfDay;
     float health;
     float hunger;
+    int32_t gamemode;
 };
 
 class RegionManager
