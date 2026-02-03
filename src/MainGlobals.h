@@ -69,7 +69,7 @@ void processInput(GLFWwindow* window, Player& player, float dt);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 std::string resolveTexturePath(const std::string& relativePath);
-GLuint loadHUDIcon(const std::string& path);
+GLuint loadHUDIcon(const std::string& path, bool useNearest = false);
 void loadBlockIcons(const std::string& basePath);
 void unloadBlockIcons();
 void executeCommand(const std::string& input, Player& player);

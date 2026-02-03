@@ -28,6 +28,8 @@ set(SHADER_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/default.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/selection.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/selection.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/destroy.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/destroy.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/water.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/water.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/particle.vert

@@ -1,3 +1,4 @@
+#include "glm/fwd.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -15,6 +16,7 @@
 #include "ChunkManager.h"
 #include "Meshing.h"
 #include "BlockTypes.h"
+#include "CoordUtils.h"
 #include "Raycast.h"
 #include "Player.h"
 #include "JobSystem.h"
@@ -29,6 +31,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <exception>
 #include <glm/glm.hpp>
@@ -175,9 +178,26 @@ int main()
     std::string hudIconPath = resolveTexturePath("assets/textures/hud_blocks");
     loadBlockIcons(hudIconPath);
 
+    GLuint destroyTextures[10] = {};
+    for (int i = 0; i < 10; ++i)
+    {
+      std::string destroyPath = resolveTexturePath(
+          "assets/textures/destroy/destroy_stage_" + std::to_string(i) + ".png");
+      destroyTextures[i] = loadHUDIcon(destroyPath, true);
+    }
+
     Shader selectionShader("selection.vert", "selection.frag");
     GLint selectionTransformLoc = glGetUniformLocation(selectionShader.ID, "transform");
     GLint selectionColorLoc = glGetUniformLocation(selectionShader.ID, "color");
+
+    Shader destroyShader("destroy.vert", "destroy.frag");
+    destroyShader.Activate();
+    glUniform1i(glGetUniformLocation(destroyShader.ID, "crackTex"), 0);
+    GLint destroyTransformLoc = glGetUniformLocation(destroyShader.ID, "transform");
+    GLint destroyTimeOfDayLoc = glGetUniformLocation(destroyShader.ID, "timeOfDay");
+    GLint destroyAmbientLightLoc = glGetUniformLocation(destroyShader.ID, "ambientLight");
+    GLint destroySkyLightLoc = glGetUniformLocation(destroyShader.ID, "SkyLight");
+    GLint destroyFaceShadeLoc = glGetUniformLocation(destroyShader.ID, "FaceShade");
 
     Shader waterShader("water.vert", "water.frag");
     waterShader.Activate();
@@ -211,6 +231,16 @@ int main()
         0, 4, 1, 5, 2, 6, 3, 7
     };
 
+    float faceVertices[] = {
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f
+    };
+    unsigned int faceIndices[] = {
+        0, 1, 2, 2, 3, 0
+    };
+
     GLuint selectionVAO, selectionVBO, selectionEBO;
     glGenVertexArrays(1, &selectionVAO);
     glGenBuffers(1, &selectionVBO);
@@ -223,6 +253,22 @@ int main()
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+
+    GLuint faceVAO, faceVBO, faceEBO;
+    glGenVertexArrays(1, &faceVAO);
+    glGenBuffers(1, &faceVBO);
+    glGenBuffers(1, &faceEBO);
+
+    glBindVertexArray(faceVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, faceVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(faceVertices), faceVertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, faceEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(faceIndices), faceIndices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
     glBindVertexArray(0);
 
     IMGUI_CHECKVERSION();
@@ -662,11 +708,66 @@ int main()
 
       glDepthMask(GL_TRUE);
       glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
-      particleSystem.render(view, proj, eyePos);
+      particleSystem.render(view, proj, eyePos, sunBrightness, ambientLight);
       glDisable(GL_BLEND);
 
       // Raycast for block selection
       selectedBlock = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
+
+      if (player.isBreaking && player.gamemode == Gamemode::Survival)
+      {
+        auto hit = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
+        if (!hit.has_value())
+        {
+          player.isBreaking = false;
+        }
+        else
+        {
+          if (hit->blockPos != player.breakingBlockPos)
+          {
+            player.isBreaking = false;
+          }
+          else 
+          {
+            float hardness = getBlockHardness(player.breakingBlockId);
+            player.breakProgress += deltaTime / hardness;
+            if (player.breakProgress >= 1.0f)
+            {
+              setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, chunkManager);
+
+              if (g_waterSimulator)
+                g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, player.breakingBlockId, 0);
+
+              if (g_particleSystem && player.breakingBlockId != 0)
+              {
+                int tileIndex = g_blockTypes[player.breakingBlockId].faceTexture[0];
+                glm::vec3 blockCenter = glm::vec3(hit->blockPos) + glm::vec3(0.5f);
+                float skyLight = 1.0f;
+                {
+                  glm::ivec3 cpos = worldToChunk(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+                  Chunk* c = chunkManager.getChunk(cpos.x, cpos.y, cpos.z);
+                  if (c)
+                  {
+                    glm::ivec3 local = worldToLocal(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+                    skyLight = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
+                  }
+                }
+                g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, skyLight, 15);
+              }
+
+              player.isBreaking = false;
+              player.breakProgress = 0.0f;
+            }
+          }
+        }
+      }
+      else 
+      {
+        player.breakProgress = 0.0f;
+      }
+
+      if (player.isDead || player.gamemode != Gamemode::Survival)
+        player.isBreaking = false;
 
       // Render selection highlight
       if (selectedBlock.has_value())
@@ -695,6 +796,76 @@ int main()
           glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         else
           glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      }
+
+      if (player.isBreaking && selectedBlock.has_value() &&
+          selectedBlock->blockPos == player.breakingBlockPos)
+      {
+        int stage = static_cast<int>(player.breakProgress * 10.0f);
+        if (stage < 0) stage = 0;
+        if (stage > 9) stage = 9;
+        GLuint crackTex = destroyTextures[stage];
+
+        if (crackTex != 0)
+        {
+          glEnable(GL_BLEND);
+          glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+          glDepthMask(GL_FALSE);
+
+          destroyShader.Activate();
+          glActiveTexture(GL_TEXTURE0);
+          glBindTexture(GL_TEXTURE_2D, crackTex);
+
+          glUniform1f(destroyTimeOfDayLoc, sunBrightness);
+          glUniform1f(destroyAmbientLightLoc, ambientLight);
+
+          float skyLight = 1.0f;
+          {
+            glm::ivec3 cpos = worldToChunk(player.breakingBlockPos.x, player.breakingBlockPos.y, player.breakingBlockPos.z);
+            Chunk* c = chunkManager.getChunk(cpos.x, cpos.y, cpos.z);
+            if (c)
+            {
+              glm::ivec3 local = worldToLocal(player.breakingBlockPos.x, player.breakingBlockPos.y, player.breakingBlockPos.z);
+              skyLight = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
+            }
+          }
+          glUniform1f(destroySkyLightLoc, skyLight);
+
+          glm::vec3 blockPos = glm::vec3(player.breakingBlockPos);
+          const float offset = 0.001f;
+
+          const float faceShades[6] = {
+              FACE_SHADE[DIR_POS_Z],
+              FACE_SHADE[DIR_NEG_Z],
+              FACE_SHADE[DIR_POS_Y],
+              FACE_SHADE[DIR_NEG_Y],
+              FACE_SHADE[DIR_POS_X],
+              FACE_SHADE[DIR_NEG_X]
+          };
+
+          std::array<glm::mat4, 6> faceTransforms = {
+              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, 0, 1 + offset)),
+              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(1, 0, -offset)) * glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0, 1, 0)),
+              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, 1 + offset, 1)) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1, 0, 0)),
+              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, -offset, 0)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)),
+              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(1 + offset, 0, 1)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0)),
+              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(-offset, 0, 0)) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 1, 0))
+          };
+
+          glBindVertexArray(faceVAO);
+          for (size_t i = 0; i < faceTransforms.size(); ++i)
+          {
+            const glm::mat4& ft = faceTransforms[i];
+            glUniform1f(destroyFaceShadeLoc, faceShades[i]);
+            glm::mat4 mvpFace = proj * view * ft;
+            glUniformMatrix4fv(destroyTransformLoc, 1, GL_FALSE, glm::value_ptr(mvpFace));
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+          }
+          glBindVertexArray(0);
+
+          glDepthMask(GL_TRUE);
+          glDisable(GL_BLEND);
+        }
       }
 
       if (showDebugMenu)
@@ -951,9 +1122,18 @@ int main()
     glDeleteVertexArrays(1, &selectionVAO);
     glDeleteBuffers(1, &selectionVBO);
     glDeleteBuffers(1, &selectionEBO);
+    glDeleteVertexArrays(1, &faceVAO);
+    glDeleteBuffers(1, &faceVBO);
+    glDeleteBuffers(1, &faceEBO);
     selectionShader.Delete();
+    destroyShader.Delete();
     waterShader.Delete();
 
+    for (GLuint tex : destroyTextures)
+    {
+      if (tex != 0)
+        glDeleteTextures(1, &tex);
+    }
     unloadBlockIcons();
 
     ImGui_ImplGlfw_Shutdown();

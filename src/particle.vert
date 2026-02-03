@@ -5,11 +5,13 @@ layout (location = 2) in float aSize;
 layout (location = 3) in float aTileIndex;
 layout (location = 4) in vec4 aColor;
 layout (location = 5) in float aLife;
+layout (location = 6) in float aSkyLight;
 
 out vec2 TexCoord;
 flat out float TileIndex;
 out vec4 ParticleColor;
 out float Lifetime;
+out float SkyLight;
 
 uniform mat4 view;
 uniform mat4 projection;
@@ -27,4 +29,5 @@ void main()
     TileIndex = aTileIndex;
     ParticleColor = aColor;
     Lifetime = aLife;
+    SkyLight = aSkyLight;
 }

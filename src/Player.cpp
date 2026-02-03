@@ -38,6 +38,10 @@ Player::Player()
     , hungerDamageTimer(0.0f)
     , regenTimer(0.0f)
     , drownTimer(0.0f)
+    , isBreaking(false)
+    , breakingBlockPos(0)
+    , breakingBlockId(0)
+    , breakProgress(0.0f)
 {
 }
 

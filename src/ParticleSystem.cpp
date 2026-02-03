@@ -42,14 +42,15 @@ void ParticleSystem::setupBuffers()
     quadVBO = VBO(quadVertices, sizeof(quadVertices), GL_STATIC_DRAW);
     vao.LinkAttrib(quadVBO, 0, 2, GL_FLOAT, 2 * sizeof(float), (void*)0);
 
-    instanceVBO.Init(MAX_PARTICLES * sizeof(float) * 10, GL_DYNAMIC_DRAW);
+    instanceVBO.Init(MAX_PARTICLES * sizeof(float) * 11, GL_DYNAMIC_DRAW);
 
-    GLsizei stride = 10 * sizeof(float);
+    GLsizei stride = 11 * sizeof(float);
     vao.LinkAttribInstanced(instanceVBO, 1, 3, GL_FLOAT, stride, (void*)0);
     vao.LinkAttribInstanced(instanceVBO, 2, 1, GL_FLOAT, stride, (void*)(3 * sizeof(float)));
     vao.LinkAttribInstanced(instanceVBO, 3, 1, GL_FLOAT, stride, (void*)(4 * sizeof(float)));
     vao.LinkAttribInstanced(instanceVBO, 4, 4, GL_FLOAT, stride, (void*)(5 * sizeof(float)));
     vao.LinkAttribInstanced(instanceVBO, 5, 1, GL_FLOAT, stride, (void*)(9 * sizeof(float)));
+    vao.LinkAttribInstanced(instanceVBO, 6, 1, GL_FLOAT, stride, (void*)(10 * sizeof(float)));
 
     vao.Unbind();
 }
@@ -70,7 +71,7 @@ void ParticleSystem::update(float dt)
     );
 }
 
-void ParticleSystem::render(const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPos)
+void ParticleSystem::render(const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPos, float timeOfDay, float ambientLight)
 {
     if (particles.empty())
         return;
@@ -79,7 +80,7 @@ void ParticleSystem::render(const glm::mat4& view, const glm::mat4& projection, 
     glm::vec3 cameraUp = glm::vec3(view[0][1], view[1][1], view[2][1]);
 
     std::vector<float> instanceData;
-    instanceData.reserve(particles.size() * 10);
+    instanceData.reserve(particles.size() * 11);
 
     for (const auto& p : particles)
     {
@@ -93,6 +94,7 @@ void ParticleSystem::render(const glm::mat4& view, const glm::mat4& projection, 
         instanceData.push_back(p.color.b);
         instanceData.push_back(p.color.a);
         instanceData.push_back(p.lifetime / p.maxLifetime);
+        instanceData.push_back(p.skyLight);
     }
 
     instanceVBO.Update(instanceData.data(), instanceData.size() * sizeof(float));
@@ -103,6 +105,8 @@ void ParticleSystem::render(const glm::mat4& view, const glm::mat4& projection, 
     glUniform3fv(glGetUniformLocation(shader->ID, "cameraRight"), 1, glm::value_ptr(cameraRight));
     glUniform3fv(glGetUniformLocation(shader->ID, "cameraUp"), 1, glm::value_ptr(cameraUp));
     glUniform1i(glGetUniformLocation(shader->ID, "textureArray"), 0);
+    glUniform1f(glGetUniformLocation(shader->ID, "timeOfDay"), timeOfDay);
+    glUniform1f(glGetUniformLocation(shader->ID, "ambientLight"), ambientLight);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -116,7 +120,7 @@ void ParticleSystem::render(const glm::mat4& view, const glm::mat4& projection, 
     vao.Unbind();
 }
 
-void ParticleSystem::spawnBlockBreakParticles(const glm::vec3& blockCenter, int tileIndex, int count)
+void ParticleSystem::spawnBlockBreakParticles(const glm::vec3& blockCenter, int tileIndex, float skyLight, int count)
 {
     std::uniform_real_distribution<float> posDist(-0.3f, 0.3f);
     std::uniform_real_distribution<float> velXZ(-3.0f, 3.0f);
@@ -134,11 +138,12 @@ void ParticleSystem::spawnBlockBreakParticles(const glm::vec3& blockCenter, int 
         p.size = sizeDist(rng);
         p.tileIndex = static_cast<float>(tileIndex);
         p.color = glm::vec4(1.0f);
+        p.skyLight = skyLight;
         particles.push_back(p);
     }
 }
 
-void ParticleSystem::spawnParticle(const glm::vec3& pos, const glm::vec3& vel, float life, float size, float tileIndex, const glm::vec4& color)
+void ParticleSystem::spawnParticle(const glm::vec3& pos, const glm::vec3& vel, float life, float size, float tileIndex, float skyLight, const glm::vec4& color)
 {
     if (particles.size() >= MAX_PARTICLES)
         return;
@@ -151,6 +156,7 @@ void ParticleSystem::spawnParticle(const glm::vec3& pos, const glm::vec3& vel, f
     p.size = size;
     p.tileIndex = tileIndex;
     p.color = color;
+    p.skyLight = skyLight;
     particles.push_back(p);
 }
 

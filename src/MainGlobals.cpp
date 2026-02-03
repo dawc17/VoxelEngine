@@ -11,6 +11,8 @@
 #include "../libs/imgui/imgui.h"
 #include "BlockTypes.h"
 #include "Camera.h"
+#include "CoordUtils.h"
+#include "Player.h"
 #include "Raycast.h"
 #include "ShaderClass.h"
 #include "TerrainGenerator.h"
@@ -99,7 +101,7 @@ void limitFPS(int targetFPS)
   lastFrameTime = FrameClock::now();
 }
 
-GLuint loadHUDIcon(const std::string& path)
+GLuint loadHUDIcon(const std::string& path, bool useNearest)
 {
   int width, height, channels;
   unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
@@ -112,8 +114,9 @@ GLuint loadHUDIcon(const std::string& path)
   GLuint texture;
   glGenTextures(1, &texture);
   glBindTexture(GL_TEXTURE_2D, texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLenum filter = useNearest ? GL_NEAREST : GL_LINEAR;
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
@@ -396,7 +399,11 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
     return;
 
   if (action != GLFW_PRESS)
+  {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && g_player)
+      g_player->isBreaking = false;
     return;
+  }
 
   if (!g_player || !g_chunkManager)
     return;
@@ -415,20 +422,40 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
   if (button == GLFW_MOUSE_BUTTON_LEFT)
   {
     uint8_t oldBlock = getBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, *g_chunkManager);
+    if (oldBlock == 0)
+      return;
 
-    if (oldBlock != 0 && g_particleSystem)
+    if (g_player->gamemode == Gamemode::Creative)
     {
-      int tileIndex = g_blockTypes[oldBlock].faceTexture[0];
-      glm::vec3 blockCenter = glm::vec3(hit->blockPos) + glm::vec3(0.5f);
-      g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, 15);
+      setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *g_chunkManager);
+
+      if (g_waterSimulator)
+        g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, oldBlock, 0);
+
+      if (g_particleSystem)
+      {
+        int tileIndex = g_blockTypes[oldBlock].faceTexture[0];
+        glm::vec3 blockCenter = glm::vec3(hit->blockPos) + glm::vec3(0.5f);
+        float skyLight = 1.0f;
+        {
+          glm::ivec3 cpos = worldToChunk(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+          Chunk* c = g_chunkManager->getChunk(cpos.x, cpos.y, cpos.z);
+          if (c)
+          {
+            glm::ivec3 local = worldToLocal(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+            skyLight = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
+          }
+        }
+        g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, skyLight, 15);
+      }
+
+      return;
     }
 
-    setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *g_chunkManager);
-
-    if (g_waterSimulator)
-    {
-      g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, oldBlock, 0);
-    }
+    g_player->isBreaking = true;
+    g_player->breakingBlockPos = hit->blockPos;
+    g_player->breakingBlockId = oldBlock;
+    g_player->breakProgress = 0.0f;
   }
   else if (button == GLFW_MOUSE_BUTTON_RIGHT)
   {

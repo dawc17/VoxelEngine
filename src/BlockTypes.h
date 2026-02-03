@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cstdint>
 #include <glm/glm.hpp>
 
 // Atlas configuration
@@ -7,6 +8,7 @@ constexpr int ATLAS_TILES_X = 32;  // 512 / 16 = 32 tiles
 constexpr int ATLAS_TILES_Y = 32;
 constexpr float TILE_U = 1.0f / ATLAS_TILES_X;
 constexpr float TILE_V = 1.0f / ATLAS_TILES_Y;
+float getBlockHardness(uint8_t blockId);
 
 struct BlockType
 {

@@ -15,6 +15,7 @@ struct Particle {
     float size;
     float tileIndex;
     glm::vec4 color;
+    float skyLight;
 };
 
 class ParticleSystem {
@@ -24,10 +25,10 @@ public:
 
     void init();
     void update(float dt);
-    void render(const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPos);
+    void render(const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPos, float timeOfDay, float ambientLight);
 
-    void spawnBlockBreakParticles(const glm::vec3& blockCenter, int tileIndex, int count = 12);
-    void spawnParticle(const glm::vec3& pos, const glm::vec3& vel, float lifetime, float size, float tileIndex, const glm::vec4& color = glm::vec4(1.0f));
+    void spawnBlockBreakParticles(const glm::vec3& blockCenter, int tileIndex, float skyLight, int count = 12);
+    void spawnParticle(const glm::vec3& pos, const glm::vec3& vel, float lifetime, float size, float tileIndex, float skyLight, const glm::vec4& color = glm::vec4(1.0f));
 
     void clear();
 

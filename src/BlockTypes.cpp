@@ -172,3 +172,19 @@ void resetBlockTextures()
 {
     g_blockTypes = g_defaultBlockTypes;
 }
+
+float getBlockHardness(uint8_t blockId)
+{
+    switch (blockId) 
+    {
+        case 1: return 1.0f;
+        case 2: return 1.2f;
+        case 3: return 1.5f;
+        case 4: return 0.8f;
+        case 5: return 1.0f;
+        case 6: return 0.2f;
+        case 7: return 0.6f;
+        case 8: return 1.0f;
+        default:  return 1.0f;
+    }
+}

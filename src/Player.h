@@ -1,4 +1,6 @@
 #pragma once
+#include "glm/fwd.hpp"
+#include <cstdint>
 #include <glm/glm.hpp>
 
 struct ChunkManager;
@@ -50,6 +52,11 @@ struct Player
   float hungerDamageTimer;
   float regenTimer;
   float drownTimer;
+
+  bool isBreaking;
+  glm::ivec3 breakingBlockPos;
+  uint8_t breakingBlockId;
+  float breakProgress;
 
   Player();
 
