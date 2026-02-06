@@ -25,6 +25,9 @@
 #include "ParticleSystem.h"
 #include "MainGlobals.h"
 #include "SurvivalSystem.h"
+#include "GameState.h"
+#include "MainMenu.h"
+#include <memory>
 
 #include "stb_image.h"
 
@@ -66,7 +69,7 @@ int main()
       return 1;
     }
     glfwMakeContextCurrent(window);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
     gladLoadGL();
     glfwSwapInterval(0);
@@ -284,799 +287,950 @@ int main()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 460");
 
-    bool wireframeMode = false;
     bool useAsyncLoading = true;
 
     Player player;
     initSurvival(player);
-    float fov = 70.0f;
 
     float lastFrame = 0.0f;
 
-    RegionManager regionManager("saves/world");
-
-    PlayerData savedPlayer;
     glm::vec3 respawnPos(0.0f, 120.0f, 0.0f);
-    if (regionManager.loadPlayerData(savedPlayer))
-    {
-      player.position = glm::vec3(savedPlayer.x, savedPlayer.y, savedPlayer.z);
-      player.yaw = savedPlayer.yaw;
-      player.pitch = savedPlayer.pitch;
-      worldTime = savedPlayer.timeOfDay;
-      player.health = savedPlayer.health;
-      player.hunger = savedPlayer.hunger;
-      player.gamemode = static_cast<Gamemode>(savedPlayer.gamemode);
-      player.isDead = false;
-      std::cout << "Loaded player position: (" << savedPlayer.x << ", " << savedPlayer.y << ", " << savedPlayer.z << ")" << std::endl;
-    }
-    JobSystem jobSystem;
-    jobSystem.setRegionManager(&regionManager);
-
-    ChunkManager chunkManager;
-    chunkManager.setRegionManager(&regionManager);
-    chunkManager.setJobSystem(&jobSystem);
-    jobSystem.setChunkManager(&chunkManager);
 
     int numWorkers = (std::max)(2, static_cast<int>(std::thread::hardware_concurrency()) - 1);
-    jobSystem.start(numWorkers);
-    std::cout << "Started job system with " << numWorkers << " worker threads" << std::endl;
 
-    WaterSimulator waterSimulator;
-    waterSimulator.setChunkManager(&chunkManager);
-
-    g_player = &player;
-    g_chunkManager = &chunkManager;
-    g_waterSimulator = &waterSimulator;
+    std::unique_ptr<RegionManager> regionManager;
+    std::unique_ptr<JobSystem> jobSystem;
+    std::unique_ptr<ChunkManager> chunkManager;
+    std::unique_ptr<WaterSimulator> waterSimulator;
 
     ParticleSystem particleSystem;
     particleSystem.init();
+
+    g_player = &player;
     g_particleSystem = &particleSystem;
 
-    // Track selected block
     std::optional<RaycastHit> selectedBlock;
 
-    // main draw loop sigma
+    auto initWorld = [&](const std::string& worldName)
+    {
+      currentWorldName = worldName;
+      std::string worldPath = "saves/" + worldName;
+
+      regionManager = std::make_unique<RegionManager>(worldPath);
+      chunkManager = std::make_unique<ChunkManager>();
+      chunkManager->setRegionManager(regionManager.get());
+
+      jobSystem = std::make_unique<JobSystem>();
+      jobSystem->setRegionManager(regionManager.get());
+      jobSystem->setChunkManager(chunkManager.get());
+      chunkManager->setJobSystem(jobSystem.get());
+      jobSystem->start(numWorkers);
+
+      waterSimulator = std::make_unique<WaterSimulator>();
+      waterSimulator->setChunkManager(chunkManager.get());
+
+      g_chunkManager = chunkManager.get();
+      g_waterSimulator = waterSimulator.get();
+
+      PlayerData savedPlayer;
+      if (regionManager->loadPlayerData(savedPlayer))
+      {
+        player.position = glm::vec3(savedPlayer.x, savedPlayer.y, savedPlayer.z);
+        player.yaw = savedPlayer.yaw;
+        player.pitch = savedPlayer.pitch;
+        worldTime = savedPlayer.timeOfDay;
+        player.health = savedPlayer.health;
+        player.hunger = savedPlayer.hunger;
+        player.gamemode = static_cast<Gamemode>(savedPlayer.gamemode);
+        player.isDead = false;
+      }
+      else
+      {
+        player.position = glm::vec3(0.0f, 120.0f, 0.0f);
+        player.velocity = glm::vec3(0.0f);
+        player.yaw = 0.0f;
+        player.pitch = 0.0f;
+        player.health = 20.0f;
+        player.hunger = 20.0f;
+        player.gamemode = Gamemode::Survival;
+        player.isDead = false;
+        player.noclip = false;
+      }
+
+      mouseLocked = true;
+      glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+      firstMouse = true;
+      currentState = GameState::Playing;
+    };
+
+    auto shutdownWorld = [&]()
+    {
+      if (!jobSystem)
+        return;
+
+      jobSystem->stop();
+
+      PlayerData playerToSave;
+      playerToSave.version = 2;
+      playerToSave.x = player.position.x;
+      playerToSave.y = player.position.y;
+      playerToSave.z = player.position.z;
+      playerToSave.yaw = player.yaw;
+      playerToSave.pitch = player.pitch;
+      playerToSave.timeOfDay = worldTime;
+      playerToSave.health = player.health;
+      playerToSave.hunger = player.hunger;
+      playerToSave.gamemode = static_cast<int32_t>(player.gamemode);
+      regionManager->savePlayerData(playerToSave);
+
+      for (auto& pair : chunkManager->chunks)
+      {
+        Chunk* chunk = pair.second.get();
+        regionManager->saveChunkData(
+            chunk->position.x, chunk->position.y, chunk->position.z, chunk->blocks);
+      }
+      regionManager->flush();
+
+      chunkManager->chunks.clear();
+
+      g_chunkManager = nullptr;
+      g_waterSimulator = nullptr;
+
+      waterSimulator.reset();
+      chunkManager.reset();
+      jobSystem.reset();
+      regionManager.reset();
+
+      selectedBlock.reset();
+
+      mouseLocked = false;
+      glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+      currentWorldName.clear();
+    };
+
     while (!glfwWindowShouldClose(window))
     {
       float currentFrame = static_cast<float>(glfwGetTime());
       float deltaTime = currentFrame - lastFrame;
       lastFrame = currentFrame;
 
-      // Clamp deltaTime to avoid physics issues during lag spikes (e.g., window resize)
-      // Max ~20 FPS equivalent to prevent falling through terrain
       const float MAX_DELTA_TIME = 0.05f;
       if (deltaTime > MAX_DELTA_TIME)
         deltaTime = MAX_DELTA_TIME;
 
-      double mouseX, mouseY;
-      glfwGetCursorPos(window, &mouseX, &mouseY);
-
-      if (firstMouse)
-      {
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
-        firstMouse = false;
-      }
-
-      float xoffset = static_cast<float>(mouseX - lastMouseX);
-      float yoffset = static_cast<float>(lastMouseY - mouseY);
-      lastMouseX = mouseX;
-      lastMouseY = mouseY;
-
-      float sensitivity = 0.1f;
-      xoffset *= sensitivity;
-      yoffset *= sensitivity;
-
-      if (mouseLocked && !player.isDead)
-      {
-        player.yaw += xoffset;
-        player.pitch += yoffset;
-      }
-
-      if (player.pitch > 89.0f)
-        player.pitch = 89.0f;
-      if (player.pitch < -89.0f)
-        player.pitch = -89.0f;
-
       fps = 1.0f / deltaTime;
-
-      // stop movement while dead
-      if (player.isDead)
-      {
-        player.velocity = glm::vec3(0.0f);
-      }
-      else 
-      {
-        processInput(window, player, deltaTime);
-        player.update(deltaTime, chunkManager);
-      }
-
-      if (autoTimeProgression)
-      {
-        worldTime += deltaTime / dayLength;
-        if (worldTime > 1.0f) worldTime -= 1.0f;
-      }
-
-      float sunAngle = worldTime * 2.0f * 3.14159265f;
-      float sunHeight = sin(sunAngle);
-      float rawSunBrightness = glm::clamp(sunHeight * 2.0f + 0.3f, 0.0f, 1.0f);
-      float moonLight = 0.25f;
-      float sunBrightness = glm::max(rawSunBrightness, moonLight);
-      float ambientLight = glm::mix(0.15f, 0.25f, rawSunBrightness);
-
-      glm::vec3 dayColor(0.53f, 0.81f, 0.92f);
-      glm::vec3 sunsetColor(1.0f, 0.55f, 0.3f);
-      glm::vec3 nightColor(0.05f, 0.07f, 0.15f);
-
-      glm::vec3 skyColor;
-      if (sunHeight > 0.1f)
-      {
-        skyColor = dayColor;
-      }
-      else if (sunHeight > -0.1f)
-      {
-        float t = (sunHeight + 0.1f) / 0.2f;
-        skyColor = glm::mix(sunsetColor, dayColor, t);
-      }
-      else
-      {
-        float t = glm::clamp((sunHeight + 0.1f) / 0.3f + 1.0f, 0.0f, 1.0f);
-        skyColor = glm::mix(nightColor, sunsetColor, t);
-      }
-
-      glm::vec3 eyePos = player.getEyePosition();
-
-      uint8_t blockAtEye = getBlockAtWorld(
-          static_cast<int>(floor(eyePos.x)),
-          static_cast<int>(floor(eyePos.y)),
-          static_cast<int>(floor(eyePos.z)),
-          chunkManager);
-      isUnderwater = (blockAtEye == 9);
-      updateSurvival(player, deltaTime, isUnderwater);
-      if (player.isDead)
-      {
-        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
-          respawnPlayer(player, respawnPos);
-      }
-
-      glm::vec3 underwaterFogColor = glm::vec3(0.1f, 0.3f, 0.5f);
-      float underwaterFogDensity = 0.12f;
-
-      glm::vec3 fogCol = isUnderwater ? underwaterFogColor : glm::mix(skyColor * 0.8f, skyColor, 0.5f);
-      glm::vec3 clearCol = isUnderwater ? underwaterFogColor : skyColor;
-      float effectiveFogDensity = isUnderwater ? underwaterFogDensity : fogDensity;
-
-      if (discoMode && !isUnderwater)
-      {
-        float t = static_cast<float>(glfwGetTime()) * discoSpeed;
-        float r = (sin(t) + 1.0f) * 0.5f;
-        float g = (sin(t * 1.3f + 2.094f) + 1.0f) * 0.5f;
-        float b = (sin(t * 0.7f + 4.188f) + 1.0f) * 0.5f;
-        glClearColor(r, g, b, 1.0f);
-      }
-      else
-      {
-        glClearColor(clearCol.r, clearCol.g, clearCol.b, 1.0f);
-      }
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-      shaderProgram.Activate();
-      glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
-
-      if (wireframeMode)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      else
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-      ImGui_ImplOpenGL3_NewFrame();
-      ImGui_ImplGlfw_NewFrame();
-      ImGui::NewFrame();
-
-      if (chatOpen)
-      {
-        ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(600.0f, 200.0f), ImGuiCond_Always);
-        ImGui::Begin("Chat", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
-
-        ImGui::BeginChild("ChatLog", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing()), false);
-        for (const auto& line : chatLog)
-          ImGui::TextUnformatted(line.c_str());
-        ImGui::EndChild();
-
-        if (chatFocusNext)
-        {
-          ImGui::SetKeyboardFocusHere();
-          chatFocusNext = false;
-        }
-
-        if (ImGui::InputText("##ChatInput", chatInput, sizeof(chatInput), ImGuiInputTextFlags_EnterReturnsTrue))
-        {
-          std::string input(chatInput);
-          chatInput[0] = 0;
-          executeCommand(input, player);
-          chatOpen = false;
-          mouseLocked = true;
-          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-          firstMouse = true;
-        }
-
-        ImGui::End();
-      }
 
       glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
       if (fbHeight == 0)
         fbHeight = 1;
 
-      glm::mat4 model = glm::mat4(1.0f);
+      static bool escWasPressed = false;
+      bool escPressed = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+      bool escJustPressed = escPressed && !escWasPressed;
+      escWasPressed = escPressed;
 
-      float effectYaw = player.yaw;
-      float effectPitch = player.pitch;
-
-      if (drunkMode)
+      if (escJustPressed && !chatOpen)
       {
-        float t = static_cast<float>(glfwGetTime());
-        effectYaw += sin(t * 2.0f) * 3.0f * drunkIntensity;
-        effectPitch += sin(t * 1.7f) * 2.0f * drunkIntensity;
-        effectYaw += sin(t * 0.5f) * 8.0f * drunkIntensity;
-        eyePos.y += sin(t * 3.0f) * 0.1f * drunkIntensity;
-      }
-
-      if (earthquakeMode)
-      {
-        float t = static_cast<float>(glfwGetTime()) * 50.0f;
-        eyePos.x += (sin(t * 1.1f) + sin(t * 2.3f) * 0.5f) * earthquakeIntensity;
-        eyePos.y += (sin(t * 1.7f) + sin(t * 3.1f) * 0.5f) * earthquakeIntensity;
-        eyePos.z += (sin(t * 1.3f) + sin(t * 2.7f) * 0.5f) * earthquakeIntensity;
-      }
-
-      Camera cam{eyePos, effectYaw, effectPitch, fov};
-      glm::vec3 camForward = CameraForward(cam);
-      glm::mat4 view = glm::lookAt(
-          eyePos,
-          eyePos + camForward,
-          glm::vec3(0.0f, 1.0f, 0.0f));
-
-      float aspect = static_cast<float>(fbWidth) / static_cast<float>(fbHeight);
-      glm::mat4 proj = glm::perspective(glm::radians(fov), aspect, 0.1f, 1000.f);
-
-      glm::mat4 mvp = proj * view * model;
-      glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(mvp));
-      glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-      glUniform1f(timeOfDayLoc, sunBrightness);
-      glUniform3fv(cameraPosLoc, 1, glm::value_ptr(eyePos));
-      glUniform3fv(skyColorLoc, 1, glm::value_ptr(clearCol));
-      glUniform3fv(fogColorLoc, 1, glm::value_ptr(fogCol));
-      glUniform1f(fogDensityLoc, effectiveFogDensity);
-      glUniform1f(ambientLightLoc, ambientLight);
-
-      int cx = static_cast<int>(std::floor(player.position.x / CHUNK_SIZE));
-      int cz = static_cast<int>(std::floor(player.position.z / CHUNK_SIZE));
-
-      const int LOAD_RADIUS = renderDistance;
-      const int UNLOAD_RADIUS = LOAD_RADIUS + 2;
-      const int CHUNK_HEIGHT_MIN = 0;
-      const int CHUNK_HEIGHT_MAX = (256 / CHUNK_SIZE) - 1;
-
-      particleSystem.update(deltaTime);
-
-      chunkManager.update();
-
-      if (enableWaterSimulation)
-      {
-        waterTickAccumulator += deltaTime;
-        while (waterTickAccumulator >= WATER_TICK_INTERVAL)
+        switch (currentState)
         {
-          waterSimulator.tick();
-          waterTickAccumulator -= WATER_TICK_INTERVAL;
+        case GameState::Playing:
+          currentState = GameState::Paused;
+          mouseLocked = false;
+          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+          break;
+        case GameState::Paused:
+          currentState = GameState::Playing;
+          mouseLocked = true;
+          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+          firstMouse = true;
+          break;
+        case GameState::WorldSelect:
+          currentState = GameState::MainMenu;
+          break;
+        case GameState::Settings:
+          currentState = settingsReturnState;
+          if (settingsReturnState == GameState::Playing)
+          {
+            mouseLocked = true;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            firstMouse = true;
+          }
+          break;
+        case GameState::MainMenu:
+          glfwSetWindowShouldClose(window, true);
+          break;
         }
       }
 
-      for (int dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++)
-      {
-        for (int dz = -LOAD_RADIUS; dz <= LOAD_RADIUS; dz++)
-        {
-          for (int cy = CHUNK_HEIGHT_MIN; cy <= CHUNK_HEIGHT_MAX; cy++)
-          {
-            int chunkX = cx + dx;
-            int chunkZ = cz + dz;
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
 
-            if (!chunkManager.hasChunk(chunkX, cy, chunkZ) && 
-                !chunkManager.isLoading(chunkX, cy, chunkZ) &&
-                !chunkManager.isSaving(chunkX, cy, chunkZ))
+      if (chunkManager)
+      {
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+
+        if (firstMouse)
+        {
+          lastMouseX = mouseX;
+          lastMouseY = mouseY;
+          firstMouse = false;
+        }
+
+        float xoffset = static_cast<float>(mouseX - lastMouseX);
+        float yoffset = static_cast<float>(lastMouseY - mouseY);
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+
+        if (currentState == GameState::Playing)
+        {
+          xoffset *= mouseSensitivity;
+          yoffset *= mouseSensitivity;
+
+          if (mouseLocked && !player.isDead)
+          {
+            player.yaw += xoffset;
+            player.pitch += yoffset;
+          }
+
+          if (player.pitch > 89.0f)
+            player.pitch = 89.0f;
+          if (player.pitch < -89.0f)
+            player.pitch = -89.0f;
+
+          if (player.isDead)
+          {
+            player.velocity = glm::vec3(0.0f);
+          }
+          else
+          {
+            processInput(window, player, deltaTime);
+            player.update(deltaTime, *chunkManager);
+          }
+
+          if (autoTimeProgression)
+          {
+            worldTime += deltaTime / dayLength;
+            if (worldTime > 1.0f) worldTime -= 1.0f;
+          }
+
+          glm::vec3 eyeCheck = player.getEyePosition();
+          uint8_t blockAtEye = getBlockAtWorld(
+              static_cast<int>(floor(eyeCheck.x)),
+              static_cast<int>(floor(eyeCheck.y)),
+              static_cast<int>(floor(eyeCheck.z)),
+              *chunkManager);
+          isUnderwater = (blockAtEye == 9);
+          updateSurvival(player, deltaTime, isUnderwater);
+          if (player.isDead)
+          {
+            if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+              respawnPlayer(player, respawnPos);
+          }
+
+          if (enableWaterSimulation)
+          {
+            waterTickAccumulator += deltaTime;
+            while (waterTickAccumulator >= WATER_TICK_INTERVAL)
             {
-              if (useAsyncLoading)
-              {
-                chunkManager.enqueueLoadChunk(chunkX, cy, chunkZ);
-              }
-              else
-              {
-                chunkManager.loadChunk(chunkX, cy, chunkZ);
-              }
+              waterSimulator->tick();
+              waterTickAccumulator -= WATER_TICK_INTERVAL;
             }
           }
-        }
-      }
 
-      std::vector<ChunkManager::ChunkCoord> toUnload;
-      for (auto &pair : chunkManager.chunks)
-      {
-        Chunk *chunk = pair.second.get();
-        int distX = chunk->position.x - cx;
-        int distZ = chunk->position.z - cz;
-        if (std::abs(distX) > UNLOAD_RADIUS || std::abs(distZ) > UNLOAD_RADIUS)
-        {
-          if (!chunkManager.isSaving(chunk->position.x, chunk->position.y, chunk->position.z))
-          {
-            toUnload.push_back({chunk->position.x, chunk->position.y, chunk->position.z});
-          }
+          particleSystem.update(deltaTime);
         }
-      }
-      for (const auto &coord : toUnload)
-      {
-        if (useAsyncLoading)
+
+        chunkManager->update();
+
+        float sunAngle = worldTime * 2.0f * 3.14159265f;
+        float sunHeight = sin(sunAngle);
+        float rawSunBrightness = glm::clamp(sunHeight * 2.0f + 0.3f, 0.0f, 1.0f);
+        float moonLight = 0.25f;
+        float sunBrightness = glm::max(rawSunBrightness, moonLight);
+        float ambientLight = glm::mix(0.15f, 0.25f, rawSunBrightness);
+
+        glm::vec3 dayColor(0.53f, 0.81f, 0.92f);
+        glm::vec3 sunsetColor(1.0f, 0.55f, 0.3f);
+        glm::vec3 nightColor(0.05f, 0.07f, 0.15f);
+
+        glm::vec3 skyColor;
+        if (sunHeight > 0.1f)
+          skyColor = dayColor;
+        else if (sunHeight > -0.1f)
         {
-          chunkManager.enqueueSaveAndUnload(coord.x, coord.y, coord.z);
+          float t = (sunHeight + 0.1f) / 0.2f;
+          skyColor = glm::mix(sunsetColor, dayColor, t);
         }
         else
         {
-          chunkManager.unloadChunk(coord.x, coord.y, coord.z);
-        }
-      }
-
-      for (auto &pair : chunkManager.chunks)
-      {
-        Chunk *chunk = pair.second.get();
-        if (chunk->dirtyMesh && !chunkManager.isMeshing(chunk->position.x, chunk->position.y, chunk->position.z))
-        {
-          bool neighborsReady = true;
-          for (int i = 0; i < 6; i++)
-          {
-            int nx = chunk->position.x + DIRS[i].x;
-            int ny = chunk->position.y + DIRS[i].y;
-            int nz = chunk->position.z + DIRS[i].z;
-            if (ny >= CHUNK_HEIGHT_MIN && ny <= CHUNK_HEIGHT_MAX)
-            {
-              if (!chunkManager.hasChunk(nx, ny, nz))
-              {
-                if (chunkManager.isLoading(nx, ny, nz))
-                {
-                  neighborsReady = false;
-                  break;
-                }
-              }
-            }
-          }
-          
-          if (neighborsReady)
-          {
-            if (useAsyncLoading)
-            {
-              chunkManager.enqueueMeshChunk(chunk->position.x, chunk->position.y, chunk->position.z);
-            }
-            else
-            {
-              buildChunkMesh(*chunk, chunkManager);
-              chunk->dirtyMesh = false;
-            }
-          }
+          float t = glm::clamp((sunHeight + 0.1f) / 0.3f + 1.0f, 0.0f, 1.0f);
+          skyColor = glm::mix(nightColor, sunsetColor, t);
         }
 
-        if (chunk->indexCount > 0)
+        glm::vec3 eyePos = player.getEyePosition();
+
+        glm::vec3 underwaterFogColor = glm::vec3(0.1f, 0.3f, 0.5f);
+        float underwaterFogDensity = 0.12f;
+        glm::vec3 fogCol = isUnderwater ? underwaterFogColor : glm::mix(skyColor * 0.8f, skyColor, 0.5f);
+        glm::vec3 clearCol = isUnderwater ? underwaterFogColor : skyColor;
+        float effectiveFogDensity = isUnderwater ? underwaterFogDensity : fogDensity;
+
+        if (discoMode && !isUnderwater)
         {
-          glm::mat4 chunkModel = glm::translate(glm::mat4(1.0f), glm::vec3(chunk->position.x * CHUNK_SIZE, chunk->position.y * CHUNK_SIZE, chunk->position.z * CHUNK_SIZE));
-          glm::mat4 chunkMVP = proj * view * chunkModel;
-          glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(chunkMVP));
-          glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(chunkModel));
-
-          glBindVertexArray(chunk->vao);
-          glDrawElements(GL_TRIANGLES, chunk->indexCount, GL_UNSIGNED_INT, 0);
-        }
-      }
-
-      glEnable(GL_BLEND);
-      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      glDepthMask(GL_FALSE);
-
-      waterShader.Activate();
-      glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
-
-      float gameTime = static_cast<float>(glfwGetTime());
-      glUniform1f(waterTimeLoc, gameTime);
-      glUniform1f(waterTimeOfDayLoc, sunBrightness);
-      glUniform3fv(waterCameraPosLoc, 1, glm::value_ptr(eyePos));
-      glUniform3fv(waterSkyColorLoc, 1, glm::value_ptr(skyColor));
-
-      glUniform3fv(waterFogColorLoc, 1, glm::value_ptr(fogCol));
-      glUniform1f(waterFogDensityLoc, effectiveFogDensity);
-      glUniform1f(waterAmbientLightLoc, ambientLight);
-      glUniform1i(waterEnableCausticsLoc, enableCaustics ? 1 : 0);
-
-      for (auto &pair : chunkManager.chunks)
-      {
-        Chunk *chunk = pair.second.get();
-        if (chunk->waterIndexCount > 0)
-        {
-          glm::mat4 chunkModel = glm::translate(glm::mat4(1.0f), glm::vec3(chunk->position.x * CHUNK_SIZE, chunk->position.y * CHUNK_SIZE, chunk->position.z * CHUNK_SIZE));
-          glm::mat4 chunkMVP = proj * view * chunkModel;
-          glUniformMatrix4fv(waterTransformLoc, 1, GL_FALSE, glm::value_ptr(chunkMVP));
-          glUniformMatrix4fv(waterModelLoc, 1, GL_FALSE, glm::value_ptr(chunkModel));
-
-          glBindVertexArray(chunk->waterVao);
-          glDrawElements(GL_TRIANGLES, chunk->waterIndexCount, GL_UNSIGNED_INT, 0);
-        }
-      }
-
-      glDepthMask(GL_TRUE);
-      glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
-      particleSystem.render(view, proj, eyePos, sunBrightness, ambientLight);
-      glDisable(GL_BLEND);
-
-      // Raycast for block selection
-      selectedBlock = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
-
-      if (player.isBreaking && player.gamemode == Gamemode::Survival)
-      {
-        auto hit = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, chunkManager);
-        if (!hit.has_value())
-        {
-          player.isBreaking = false;
+          float t = static_cast<float>(glfwGetTime()) * discoSpeed;
+          float r = (sin(t) + 1.0f) * 0.5f;
+          float g = (sin(t * 1.3f + 2.094f) + 1.0f) * 0.5f;
+          float b = (sin(t * 0.7f + 4.188f) + 1.0f) * 0.5f;
+          glClearColor(r, g, b, 1.0f);
         }
         else
         {
-          if (hit->blockPos != player.breakingBlockPos)
-          {
-            player.isBreaking = false;
-          }
-          else 
-          {
-            float hardness = getBlockHardness(player.breakingBlockId);
-            player.breakProgress += deltaTime / hardness;
-            if (player.breakProgress >= 1.0f)
-            {
-              setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, chunkManager);
-
-              if (g_waterSimulator)
-                g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, player.breakingBlockId, 0);
-
-              if (g_particleSystem && player.breakingBlockId != 0)
-              {
-                int tileIndex = g_blockTypes[player.breakingBlockId].faceTexture[0];
-                glm::vec3 blockCenter = glm::vec3(hit->blockPos) + glm::vec3(0.5f);
-                float skyLight = 1.0f;
-                {
-                  glm::ivec3 cpos = worldToChunk(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
-                  Chunk* c = chunkManager.getChunk(cpos.x, cpos.y, cpos.z);
-                  if (c)
-                  {
-                    glm::ivec3 local = worldToLocal(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
-                    skyLight = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
-                  }
-                }
-                g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, skyLight, 15);
-              }
-
-              player.isBreaking = false;
-              player.breakProgress = 0.0f;
-            }
-          }
+          glClearColor(clearCol.r, clearCol.g, clearCol.b, 1.0f);
         }
-      }
-      else 
-      {
-        player.breakProgress = 0.0f;
-      }
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-      if (player.isDead || player.gamemode != Gamemode::Survival)
-        player.isBreaking = false;
+        shaderProgram.Activate();
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
 
-      // Render selection highlight
-      if (selectedBlock.has_value())
-      {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glLineWidth(2.0f);
-        // Use polygon offset to push lines slightly forward, avoiding z-fighting
-        glEnable(GL_POLYGON_OFFSET_LINE);
-        glPolygonOffset(-1.0f, -1.0f);
-
-        selectionShader.Activate();
-        glm::mat4 selectionModel = glm::translate(glm::mat4(1.0f), 
-            glm::vec3(selectedBlock->blockPos));
-        glm::mat4 selectionMVP = proj * view * selectionModel;
-        glUniformMatrix4fv(selectionTransformLoc, 1, GL_FALSE, glm::value_ptr(selectionMVP));
-        glUniform4f(selectionColorLoc, 0.0f, 0.0f, 0.0f, 1.0f);  // Black outline
-
-        glBindVertexArray(selectionVAO);
-        glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
-
-        glDisable(GL_POLYGON_OFFSET_LINE);
-        glLineWidth(1.0f);
-        
-        // Restore polygon mode
         if (wireframeMode)
           glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         else
           glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      }
 
-      if (player.isBreaking && selectedBlock.has_value() &&
-          selectedBlock->blockPos == player.breakingBlockPos)
-      {
-        int stage = static_cast<int>(player.breakProgress * 10.0f);
-        if (stage < 0) stage = 0;
-        if (stage > 9) stage = 9;
-        GLuint crackTex = destroyTextures[stage];
-
-        if (crackTex != 0)
+        if (chatOpen && currentState == GameState::Playing)
         {
-          glEnable(GL_BLEND);
-          glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-          glDepthMask(GL_FALSE);
+          ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_Always);
+          ImGui::SetNextWindowSize(ImVec2(600.0f, 200.0f), ImGuiCond_Always);
+          ImGui::Begin("Chat", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
 
-          destroyShader.Activate();
-          glActiveTexture(GL_TEXTURE0);
-          glBindTexture(GL_TEXTURE_2D, crackTex);
+          ImGui::BeginChild("ChatLog", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing()), false);
+          for (const auto& line : chatLog)
+            ImGui::TextUnformatted(line.c_str());
+          ImGui::EndChild();
 
-          glUniform1f(destroyTimeOfDayLoc, sunBrightness);
-          glUniform1f(destroyAmbientLightLoc, ambientLight);
-
-          float skyLight = 1.0f;
+          if (chatFocusNext)
           {
-            glm::ivec3 cpos = worldToChunk(player.breakingBlockPos.x, player.breakingBlockPos.y, player.breakingBlockPos.z);
-            Chunk* c = chunkManager.getChunk(cpos.x, cpos.y, cpos.z);
-            if (c)
+            ImGui::SetKeyboardFocusHere();
+            chatFocusNext = false;
+          }
+
+          if (ImGui::InputText("##ChatInput", chatInput, sizeof(chatInput), ImGuiInputTextFlags_EnterReturnsTrue))
+          {
+            std::string input(chatInput);
+            chatInput[0] = 0;
+            executeCommand(input, player);
+            chatOpen = false;
+            mouseLocked = true;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            firstMouse = true;
+          }
+
+          ImGui::End();
+        }
+
+        glm::mat4 model = glm::mat4(1.0f);
+
+        float effectYaw = player.yaw;
+        float effectPitch = player.pitch;
+
+        if (drunkMode)
+        {
+          float t = static_cast<float>(glfwGetTime());
+          effectYaw += sin(t * 2.0f) * 3.0f * drunkIntensity;
+          effectPitch += sin(t * 1.7f) * 2.0f * drunkIntensity;
+          effectYaw += sin(t * 0.5f) * 8.0f * drunkIntensity;
+          eyePos.y += sin(t * 3.0f) * 0.1f * drunkIntensity;
+        }
+
+        if (earthquakeMode)
+        {
+          float t = static_cast<float>(glfwGetTime()) * 50.0f;
+          eyePos.x += (sin(t * 1.1f) + sin(t * 2.3f) * 0.5f) * earthquakeIntensity;
+          eyePos.y += (sin(t * 1.7f) + sin(t * 3.1f) * 0.5f) * earthquakeIntensity;
+          eyePos.z += (sin(t * 1.3f) + sin(t * 2.7f) * 0.5f) * earthquakeIntensity;
+        }
+
+        Camera cam{eyePos, effectYaw, effectPitch, fov};
+        glm::vec3 camForward = CameraForward(cam);
+        glm::mat4 view = glm::lookAt(
+            eyePos,
+            eyePos + camForward,
+            glm::vec3(0.0f, 1.0f, 0.0f));
+
+        float aspect = static_cast<float>(fbWidth) / static_cast<float>(fbHeight);
+        glm::mat4 proj = glm::perspective(glm::radians(fov), aspect, 0.1f, 1000.f);
+
+        glm::mat4 mvp = proj * view * model;
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1f(timeOfDayLoc, sunBrightness);
+        glUniform3fv(cameraPosLoc, 1, glm::value_ptr(eyePos));
+        glUniform3fv(skyColorLoc, 1, glm::value_ptr(clearCol));
+        glUniform3fv(fogColorLoc, 1, glm::value_ptr(fogCol));
+        glUniform1f(fogDensityLoc, effectiveFogDensity);
+        glUniform1f(ambientLightLoc, ambientLight);
+
+        int cx = static_cast<int>(std::floor(player.position.x / CHUNK_SIZE));
+        int cz = static_cast<int>(std::floor(player.position.z / CHUNK_SIZE));
+
+        const int LOAD_RADIUS = renderDistance;
+        const int UNLOAD_RADIUS = LOAD_RADIUS + 2;
+        const int CHUNK_HEIGHT_MIN = 0;
+        const int CHUNK_HEIGHT_MAX = (256 / CHUNK_SIZE) - 1;
+
+        if (currentState == GameState::Playing)
+        {
+          for (int dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++)
+          {
+            for (int dz = -LOAD_RADIUS; dz <= LOAD_RADIUS; dz++)
             {
-              glm::ivec3 local = worldToLocal(player.breakingBlockPos.x, player.breakingBlockPos.y, player.breakingBlockPos.z);
-              skyLight = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
+              for (int cy = CHUNK_HEIGHT_MIN; cy <= CHUNK_HEIGHT_MAX; cy++)
+              {
+                int chunkX = cx + dx;
+                int chunkZ = cz + dz;
+
+                if (!chunkManager->hasChunk(chunkX, cy, chunkZ) &&
+                    !chunkManager->isLoading(chunkX, cy, chunkZ) &&
+                    !chunkManager->isSaving(chunkX, cy, chunkZ))
+                {
+                  if (useAsyncLoading)
+                    chunkManager->enqueueLoadChunk(chunkX, cy, chunkZ);
+                  else
+                    chunkManager->loadChunk(chunkX, cy, chunkZ);
+                }
+              }
             }
           }
-          glUniform1f(destroySkyLightLoc, skyLight);
 
-          glm::vec3 blockPos = glm::vec3(player.breakingBlockPos);
-          const float offset = 0.001f;
-
-          const float faceShades[6] = {
-              FACE_SHADE[DIR_POS_Z],
-              FACE_SHADE[DIR_NEG_Z],
-              FACE_SHADE[DIR_POS_Y],
-              FACE_SHADE[DIR_NEG_Y],
-              FACE_SHADE[DIR_POS_X],
-              FACE_SHADE[DIR_NEG_X]
-          };
-
-          std::array<glm::mat4, 6> faceTransforms = {
-              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, 0, 1 + offset)),
-              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(1, 0, -offset)) * glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0, 1, 0)),
-              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, 1 + offset, 1)) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1, 0, 0)),
-              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, -offset, 0)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)),
-              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(1 + offset, 0, 1)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0)),
-              glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(-offset, 0, 0)) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 1, 0))
-          };
-
-          glBindVertexArray(faceVAO);
-          for (size_t i = 0; i < faceTransforms.size(); ++i)
+          std::vector<ChunkManager::ChunkCoord> toUnload;
+          for (auto& pair : chunkManager->chunks)
           {
-            const glm::mat4& ft = faceTransforms[i];
-            glUniform1f(destroyFaceShadeLoc, faceShades[i]);
-            glm::mat4 mvpFace = proj * view * ft;
-            glUniformMatrix4fv(destroyTransformLoc, 1, GL_FALSE, glm::value_ptr(mvpFace));
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-          }
-          glBindVertexArray(0);
-
-          glDepthMask(GL_TRUE);
-          glDisable(GL_BLEND);
-        }
-      }
-
-      if (showDebugMenu)
-      {
-        ImGuiWindowFlags debugFlags = 0;
-        if (mouseLocked)
-          debugFlags |= ImGuiWindowFlags_NoInputs;
-        ImGui::Begin("Debug", nullptr, debugFlags);
-        
-        if (ImGui::BeginTabBar("DebugTabs"))
-        {
-          if (ImGui::BeginTabItem("Info"))
-          {
-            ImGui::Text("FPS: %.1f", fps);
-            ImGui::Text("Position: (%.2f, %.2f, %.2f)",
-                        player.position.x, player.position.y, player.position.z);
-            ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
-                        player.velocity.x, player.velocity.y, player.velocity.z);
-            ImGui::Text("Yaw: %.1f, Pitch: %.1f", player.yaw, player.pitch);
-            ImGui::Text("On Ground: %s", player.onGround ? "Yes" : "No");
-
-            int chunkX = static_cast<int>(floor(player.position.x / 16.0f));
-            int chunkZ = static_cast<int>(floor(player.position.z / 16.0f));
-            ImGui::Text("Chunk: (%d, %d)", chunkX, chunkZ);
-
-            if (selectedBlock.has_value())
+            Chunk* chunk = pair.second.get();
+            int distX = chunk->position.x - cx;
+            int distZ = chunk->position.z - cz;
+            if (std::abs(distX) > UNLOAD_RADIUS || std::abs(distZ) > UNLOAD_RADIUS)
             {
-              ImGui::Separator();
-              ImGui::Text("Selected Block: (%d, %d, %d)", 
-                  selectedBlock->blockPos.x, 
-                  selectedBlock->blockPos.y, 
-                  selectedBlock->blockPos.z);
-              uint8_t blockId = getBlockAtWorld(
-                  selectedBlock->blockPos.x, 
-                  selectedBlock->blockPos.y, 
-                  selectedBlock->blockPos.z, 
-                  chunkManager);
-              ImGui::Text("Block ID: %d", blockId);
-              ImGui::Text("Distance: %.2f", selectedBlock->distance);
+              if (!chunkManager->isSaving(chunk->position.x, chunk->position.y, chunk->position.z))
+                toUnload.push_back({chunk->position.x, chunk->position.y, chunk->position.z});
+            }
+          }
+          for (const auto& coord : toUnload)
+          {
+            if (useAsyncLoading)
+              chunkManager->enqueueSaveAndUnload(coord.x, coord.y, coord.z);
+            else
+              chunkManager->unloadChunk(coord.x, coord.y, coord.z);
+          }
+        }
+
+        for (auto& pair : chunkManager->chunks)
+        {
+          Chunk* chunk = pair.second.get();
+          if (chunk->dirtyMesh && !chunkManager->isMeshing(chunk->position.x, chunk->position.y, chunk->position.z))
+          {
+            bool neighborsReady = true;
+            for (int i = 0; i < 6; i++)
+            {
+              int nx = chunk->position.x + DIRS[i].x;
+              int ny = chunk->position.y + DIRS[i].y;
+              int nz = chunk->position.z + DIRS[i].z;
+              if (ny >= CHUNK_HEIGHT_MIN && ny <= CHUNK_HEIGHT_MAX)
+              {
+                if (!chunkManager->hasChunk(nx, ny, nz))
+                {
+                  if (chunkManager->isLoading(nx, ny, nz))
+                  {
+                    neighborsReady = false;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (neighborsReady)
+            {
+              if (useAsyncLoading)
+                chunkManager->enqueueMeshChunk(chunk->position.x, chunk->position.y, chunk->position.z);
+              else
+              {
+                buildChunkMesh(*chunk, *chunkManager);
+                chunk->dirtyMesh = false;
+              }
+            }
+          }
+
+          if (chunk->indexCount > 0)
+          {
+            glm::mat4 chunkModel = glm::translate(glm::mat4(1.0f), glm::vec3(chunk->position.x * CHUNK_SIZE, chunk->position.y * CHUNK_SIZE, chunk->position.z * CHUNK_SIZE));
+            glm::mat4 chunkMVP = proj * view * chunkModel;
+            glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(chunkMVP));
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(chunkModel));
+
+            glBindVertexArray(chunk->vao);
+            glDrawElements(GL_TRIANGLES, chunk->indexCount, GL_UNSIGNED_INT, 0);
+          }
+        }
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+
+        waterShader.Activate();
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
+
+        float gameTime = static_cast<float>(glfwGetTime());
+        glUniform1f(waterTimeLoc, gameTime);
+        glUniform1f(waterTimeOfDayLoc, sunBrightness);
+        glUniform3fv(waterCameraPosLoc, 1, glm::value_ptr(eyePos));
+        glUniform3fv(waterSkyColorLoc, 1, glm::value_ptr(skyColor));
+        glUniform3fv(waterFogColorLoc, 1, glm::value_ptr(fogCol));
+        glUniform1f(waterFogDensityLoc, effectiveFogDensity);
+        glUniform1f(waterAmbientLightLoc, ambientLight);
+        glUniform1i(waterEnableCausticsLoc, enableCaustics ? 1 : 0);
+
+        for (auto& pair : chunkManager->chunks)
+        {
+          Chunk* chunk = pair.second.get();
+          if (chunk->waterIndexCount > 0)
+          {
+            glm::mat4 chunkModel = glm::translate(glm::mat4(1.0f), glm::vec3(chunk->position.x * CHUNK_SIZE, chunk->position.y * CHUNK_SIZE, chunk->position.z * CHUNK_SIZE));
+            glm::mat4 chunkMVP = proj * view * chunkModel;
+            glUniformMatrix4fv(waterTransformLoc, 1, GL_FALSE, glm::value_ptr(chunkMVP));
+            glUniformMatrix4fv(waterModelLoc, 1, GL_FALSE, glm::value_ptr(chunkModel));
+
+            glBindVertexArray(chunk->waterVao);
+            glDrawElements(GL_TRIANGLES, chunk->waterIndexCount, GL_UNSIGNED_INT, 0);
+          }
+        }
+
+        glDepthMask(GL_TRUE);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
+        particleSystem.render(view, proj, eyePos, sunBrightness, ambientLight);
+        glDisable(GL_BLEND);
+
+        if (currentState == GameState::Playing)
+        {
+          selectedBlock = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, *chunkManager);
+
+          if (player.isBreaking && player.gamemode == Gamemode::Survival)
+          {
+            auto hit = raycastVoxel(eyePos, camForward, MAX_RAYCAST_DISTANCE, *chunkManager);
+            if (!hit.has_value())
+            {
+              player.isBreaking = false;
             }
             else
             {
+              if (hit->blockPos != player.breakingBlockPos)
+              {
+                player.isBreaking = false;
+              }
+              else
+              {
+                float hardness = getBlockHardness(player.breakingBlockId);
+                player.breakProgress += deltaTime / hardness;
+                if (player.breakProgress >= 1.0f)
+                {
+                  setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *chunkManager);
+
+                  if (g_waterSimulator)
+                    g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, player.breakingBlockId, 0);
+
+                  if (g_particleSystem && player.breakingBlockId != 0)
+                  {
+                    int tileIndex = g_blockTypes[player.breakingBlockId].faceTexture[0];
+                    glm::vec3 blockCenter = glm::vec3(hit->blockPos) + glm::vec3(0.5f);
+                    float skyLightVal = 1.0f;
+                    {
+                      glm::ivec3 cpos = worldToChunk(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+                      Chunk* c = chunkManager->getChunk(cpos.x, cpos.y, cpos.z);
+                      if (c)
+                      {
+                        glm::ivec3 local = worldToLocal(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+                        skyLightVal = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
+                      }
+                    }
+                    g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, skyLightVal, 15);
+                  }
+
+                  player.isBreaking = false;
+                  player.breakProgress = 0.0f;
+                }
+              }
+            }
+          }
+          else
+          {
+            player.breakProgress = 0.0f;
+          }
+
+          if (player.isDead || player.gamemode != Gamemode::Survival)
+            player.isBreaking = false;
+        }
+
+        if (selectedBlock.has_value())
+        {
+          glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+          glLineWidth(2.0f);
+          glEnable(GL_POLYGON_OFFSET_LINE);
+          glPolygonOffset(-1.0f, -1.0f);
+
+          selectionShader.Activate();
+          glm::mat4 selectionModel = glm::translate(glm::mat4(1.0f),
+              glm::vec3(selectedBlock->blockPos));
+          glm::mat4 selectionMVP = proj * view * selectionModel;
+          glUniformMatrix4fv(selectionTransformLoc, 1, GL_FALSE, glm::value_ptr(selectionMVP));
+          glUniform4f(selectionColorLoc, 0.0f, 0.0f, 0.0f, 1.0f);
+
+          glBindVertexArray(selectionVAO);
+          glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, 0);
+
+          glDisable(GL_POLYGON_OFFSET_LINE);
+          glLineWidth(1.0f);
+
+          if (wireframeMode)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+          else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
+        if (player.isBreaking && selectedBlock.has_value() &&
+            selectedBlock->blockPos == player.breakingBlockPos)
+        {
+          int stage = static_cast<int>(player.breakProgress * 10.0f);
+          if (stage < 0) stage = 0;
+          if (stage > 9) stage = 9;
+          GLuint crackTex = destroyTextures[stage];
+
+          if (crackTex != 0)
+          {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+
+            destroyShader.Activate();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, crackTex);
+
+            glUniform1f(destroyTimeOfDayLoc, sunBrightness);
+            glUniform1f(destroyAmbientLightLoc, ambientLight);
+
+            float skyLightVal = 1.0f;
+            {
+              glm::ivec3 cpos = worldToChunk(player.breakingBlockPos.x, player.breakingBlockPos.y, player.breakingBlockPos.z);
+              Chunk* c = chunkManager->getChunk(cpos.x, cpos.y, cpos.z);
+              if (c)
+              {
+                glm::ivec3 local = worldToLocal(player.breakingBlockPos.x, player.breakingBlockPos.y, player.breakingBlockPos.z);
+                skyLightVal = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
+              }
+            }
+            glUniform1f(destroySkyLightLoc, skyLightVal);
+
+            glm::vec3 blockPos = glm::vec3(player.breakingBlockPos);
+            const float offset = 0.001f;
+
+            const float faceShades[6] = {
+                FACE_SHADE[DIR_POS_Z],
+                FACE_SHADE[DIR_NEG_Z],
+                FACE_SHADE[DIR_POS_Y],
+                FACE_SHADE[DIR_NEG_Y],
+                FACE_SHADE[DIR_POS_X],
+                FACE_SHADE[DIR_NEG_X]
+            };
+
+            std::array<glm::mat4, 6> faceTransforms = {
+                glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, 0, 1 + offset)),
+                glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(1, 0, -offset)) * glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0, 1, 0)),
+                glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, 1 + offset, 1)) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1, 0, 0)),
+                glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(0, -offset, 0)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0)),
+                glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(1 + offset, 0, 1)) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0, 1, 0)),
+                glm::translate(glm::mat4(1.0f), blockPos + glm::vec3(-offset, 0, 0)) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 1, 0))
+            };
+
+            glBindVertexArray(faceVAO);
+            for (size_t i = 0; i < faceTransforms.size(); ++i)
+            {
+              const glm::mat4& ft = faceTransforms[i];
+              glUniform1f(destroyFaceShadeLoc, faceShades[i]);
+              glm::mat4 mvpFace = proj * view * ft;
+              glUniformMatrix4fv(destroyTransformLoc, 1, GL_FALSE, glm::value_ptr(mvpFace));
+              glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            }
+            glBindVertexArray(0);
+
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+          }
+        }
+
+        if (showDebugMenu && currentState == GameState::Playing)
+        {
+          ImGuiWindowFlags debugFlags = 0;
+          if (mouseLocked)
+            debugFlags |= ImGuiWindowFlags_NoInputs;
+          ImGui::Begin("Debug", nullptr, debugFlags);
+
+          if (ImGui::BeginTabBar("DebugTabs"))
+          {
+            if (ImGui::BeginTabItem("Info"))
+            {
+              ImGui::Text("FPS: %.1f", fps);
+              ImGui::Text("Position: (%.2f, %.2f, %.2f)",
+                          player.position.x, player.position.y, player.position.z);
+              ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
+                          player.velocity.x, player.velocity.y, player.velocity.z);
+              ImGui::Text("Yaw: %.1f, Pitch: %.1f", player.yaw, player.pitch);
+              ImGui::Text("On Ground: %s", player.onGround ? "Yes" : "No");
+
+              int chunkXDbg = static_cast<int>(floor(player.position.x / 16.0f));
+              int chunkZDbg = static_cast<int>(floor(player.position.z / 16.0f));
+              ImGui::Text("Chunk: (%d, %d)", chunkXDbg, chunkZDbg);
+
+              if (selectedBlock.has_value())
+              {
+                ImGui::Separator();
+                ImGui::Text("Selected Block: (%d, %d, %d)",
+                    selectedBlock->blockPos.x,
+                    selectedBlock->blockPos.y,
+                    selectedBlock->blockPos.z);
+                uint8_t blockId = getBlockAtWorld(
+                    selectedBlock->blockPos.x,
+                    selectedBlock->blockPos.y,
+                    selectedBlock->blockPos.z,
+                    *chunkManager);
+                ImGui::Text("Block ID: %d", blockId);
+                ImGui::Text("Distance: %.2f", selectedBlock->distance);
+              }
+              else
+              {
+                ImGui::Separator();
+                ImGui::Text("No block selected");
+              }
+
               ImGui::Separator();
-              ImGui::Text("No block selected");
+
+              const char* blockNames[] = {"Air", "Dirt", "Grass", "Stone", "Sand", "Oak Log", "Oak Leaves", "Glass", "Oak Planks", "Water"};
+              uint8_t selectedBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
+              ImGui::Text("Selected: %s (ID: %d)", blockNames[selectedBlockId], selectedBlockId);
+              ImGui::Text("Scroll wheel to change block");
+
+              ImGui::Separator();
+              ImGui::Text("LMB: Break block");
+              ImGui::Text("RMB: Place block");
+              ImGui::Text("Space: Jump");
+
+              ImGui::Separator();
+              ImGui::Text("Chunks loaded: %zu", chunkManager->chunks.size());
+              ImGui::Text("Chunks loading: %zu", chunkManager->loadingChunks.size());
+              ImGui::Text("Chunks meshing: %zu", chunkManager->meshingChunks.size());
+              ImGui::Text("Jobs pending: %zu", jobSystem->pendingJobCount());
+
+              ImGui::EndTabItem();
             }
 
-            ImGui::Separator();
-            
-            const char* blockNames[] = {"Air", "Dirt", "Grass", "Stone", "Sand", "Oak Log", "Oak Leaves", "Glass", "Oak Planks", "Water"};
-            uint8_t selectedBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
-            ImGui::Text("Selected: %s (ID: %d)", blockNames[selectedBlockId], selectedBlockId);
-            ImGui::Text("Scroll wheel to change block");
-            
-            ImGui::Separator();
-            ImGui::Text("LMB: Break block");
-            ImGui::Text("RMB: Place block");
-            ImGui::Text("Space: Jump");
-
-            ImGui::Separator();
-            ImGui::Text("Chunks loaded: %zu", chunkManager.chunks.size());
-            ImGui::Text("Chunks loading: %zu", chunkManager.loadingChunks.size());
-            ImGui::Text("Chunks meshing: %zu", chunkManager.meshingChunks.size());
-            ImGui::Text("Jobs pending: %zu", jobSystem.pendingJobCount());
-            
-            ImGui::EndTabItem();
-          }
-          
-          if (ImGui::BeginTabItem("Settings"))
-          {
-            ImGui::SliderInt("Render Distance", &renderDistance, 2, 16);
-            
-            ImGui::Separator();
-            ImGui::Checkbox("Wireframe mode", &wireframeMode);
-            ImGui::Checkbox("Noclip mode", &player.noclip);
-            ImGui::Checkbox("Async Loading", &useAsyncLoading);
-            ImGui::SliderFloat("Move Speed", &cameraSpeed, 0.0f, 60.0f);
-
-            ImGui::Separator();
-            ImGui::InputInt("Max FPS", &targetFps);
-            if (targetFps < 10) targetFps = 10;
-            if (targetFps > 1000) targetFps = 1000;
-
-            ImGui::Separator();
-            ImGui::Text("DAY/NIGHT CYCLE");
-            ImGui::Checkbox("Auto Time", &autoTimeProgression);
-            ImGui::SliderFloat("Time of Day", &worldTime, 0.0f, 1.0f, "%.2f");
-            ImGui::SliderFloat("Day Length (s)", &dayLength, 60.0f, 1200.0f);
-            ImGui::SliderFloat("Fog Density", &fogDensity, 0.001f, 0.05f, "%.4f");
-            
-            const char* timeNames[] = {"Midnight", "Dawn", "Morning", "Noon", "Afternoon", "Dusk", "Evening", "Night"};
-            int timeIndex = static_cast<int>(worldTime * 8.0f) % 8;
-            ImGui::Text("Current: %s (Sun: %.0f%%)", timeNames[timeIndex], rawSunBrightness * 100.0f);
-
-            ImGui::Separator();
-            ImGui::Text("WATER");
-            ImGui::Checkbox("Caustics", &enableCaustics);
-            ImGui::Checkbox("Water Physics", &enableWaterSimulation);
-            if (enableWaterSimulation)
+            if (ImGui::BeginTabItem("Settings"))
             {
-              ImGui::SliderInt("Water Tick Rate", &waterTickRate, 1, 20);
-              waterSimulator.setTickRate(waterTickRate);
+              ImGui::SliderInt("Render Distance", &renderDistance, 2, 16);
+
+              ImGui::Separator();
+              ImGui::Checkbox("Wireframe mode", &wireframeMode);
+              ImGui::Checkbox("Noclip mode", &player.noclip);
+              ImGui::Checkbox("Async Loading", &useAsyncLoading);
+              ImGui::SliderFloat("Move Speed", &cameraSpeed, 0.0f, 60.0f);
+
+              ImGui::Separator();
+              ImGui::InputInt("Max FPS", &targetFps);
+              if (targetFps < 10) targetFps = 10;
+              if (targetFps > 1000) targetFps = 1000;
+
+              ImGui::Separator();
+              ImGui::Text("DAY/NIGHT CYCLE");
+              ImGui::Checkbox("Auto Time", &autoTimeProgression);
+              ImGui::SliderFloat("Time of Day", &worldTime, 0.0f, 1.0f, "%.2f");
+              ImGui::SliderFloat("Day Length (s)", &dayLength, 60.0f, 1200.0f);
+              ImGui::SliderFloat("Fog Density", &fogDensity, 0.001f, 0.05f, "%.4f");
+
+              const char* timeNames[] = {"Midnight", "Dawn", "Morning", "Noon", "Afternoon", "Dusk", "Evening", "Night"};
+              int timeIndex = static_cast<int>(worldTime * 8.0f) % 8;
+              ImGui::Text("Current: %s (Sun: %.0f%%)", timeNames[timeIndex], rawSunBrightness * 100.0f);
+
+              ImGui::Separator();
+              ImGui::Text("WATER");
+              ImGui::Checkbox("Caustics", &enableCaustics);
+              ImGui::Checkbox("Water Physics", &enableWaterSimulation);
+              if (enableWaterSimulation)
+              {
+                ImGui::SliderInt("Water Tick Rate", &waterTickRate, 1, 20);
+                waterSimulator->setTickRate(waterTickRate);
+              }
+              if (isUnderwater)
+              {
+                ImGui::TextColored(ImVec4(0.2f, 0.6f, 1.0f, 1.0f), "UNDERWATER");
+              }
+              ImGui::EndTabItem();
             }
-            if (isUnderwater)
-            {
-              ImGui::TextColored(ImVec4(0.2f, 0.6f, 1.0f, 1.0f), "UNDERWATER");
-            }
-            ImGui::EndTabItem();
+
+            ImGui::EndTabBar();
           }
-          
-          ImGui::EndTabBar();
-        }
 
-        ImGui::End();
+          ImGui::End();
 
-        ImGui::Begin("Fun Bullshit", nullptr, debugFlags);
-        
-        if (ImGui::Button("Randomize Block Textures"))
-        {
-          randomizeBlockTextures();
-          for (auto& pair : chunkManager.chunks)
+          ImGui::Begin("Fun Bullshit", nullptr, debugFlags);
+
+          if (ImGui::Button("Randomize Block Textures"))
           {
-            pair.second->dirtyMesh = true;
+            randomizeBlockTextures();
+            for (auto& pair : chunkManager->chunks)
+              pair.second->dirtyMesh = true;
           }
-        }
-        
-        if (ImGui::Button("Reset Block Textures"))
-        {
-          resetBlockTextures();
-          for (auto& pair : chunkManager.chunks)
+
+          if (ImGui::Button("Reset Block Textures"))
           {
-            pair.second->dirtyMesh = true;
+            resetBlockTextures();
+            for (auto& pair : chunkManager->chunks)
+              pair.second->dirtyMesh = true;
           }
+
+          ImGui::Separator();
+          ImGui::Text("VISUAL CHAOS");
+
+          ImGui::Checkbox("Drunk Mode", &drunkMode);
+          if (drunkMode)
+            ImGui::SliderFloat("Drunk Intensity", &drunkIntensity, 0.1f, 5.0f);
+
+          ImGui::Checkbox("Disco Mode", &discoMode);
+          if (discoMode)
+            ImGui::SliderFloat("Disco Speed", &discoSpeed, 1.0f, 50.0f);
+
+          ImGui::Checkbox("Earthquake", &earthquakeMode);
+          if (earthquakeMode)
+            ImGui::SliderFloat("Quake Intensity", &earthquakeIntensity, 0.05f, 2.0f);
+
+          ImGui::End();
         }
 
-        ImGui::Separator();
-        ImGui::Text("VISUAL CHAOS");
+        ImDrawList* drawList = ImGui::GetForegroundDrawList();
+        if (player.gamemode == Gamemode::Survival)
+          drawSurvivalHud(player, fbWidth, fbHeight);
+        ImVec2 center(fbWidth * 0.5f, fbHeight * 0.5f);
+        float crosshairSize = 10.0f;
+        float crosshairThickness = 2.0f;
+        ImU32 crosshairColor = IM_COL32(255, 255, 255, 200);
 
-        ImGui::Checkbox("Drunk Mode", &drunkMode);
-        if (drunkMode)
+        drawList->AddLine(
+            ImVec2(center.x - crosshairSize, center.y),
+            ImVec2(center.x + crosshairSize, center.y),
+            crosshairColor, crosshairThickness);
+        drawList->AddLine(
+            ImVec2(center.x, center.y - crosshairSize),
+            ImVec2(center.x, center.y + crosshairSize),
+            crosshairColor, crosshairThickness);
+
+        uint8_t currentBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
+        auto iconIt = g_blockIcons.find(currentBlockId);
+        if (iconIt != g_blockIcons.end())
         {
-          ImGui::SliderFloat("Drunk Intensity", &drunkIntensity, 0.1f, 5.0f);
-        }
+            float iconSize = 128.0f;
+            float padding = 20.0f;
+            float iconX = fbWidth - iconSize - padding;
+            float iconY = padding;
 
-        ImGui::Checkbox("Disco Mode", &discoMode);
-        if (discoMode)
-        {
-          ImGui::SliderFloat("Disco Speed", &discoSpeed, 1.0f, 50.0f);
-        }
+            float bgPadding = 8.0f;
+            drawList->AddRectFilled(
+                ImVec2(iconX - bgPadding, iconY - bgPadding),
+                ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
+                IM_COL32(0, 0, 0, 150),
+                8.0f);
+            drawList->AddRect(
+                ImVec2(iconX - bgPadding, iconY - bgPadding),
+                ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
+                IM_COL32(255, 255, 255, 100),
+                8.0f,
+                0,
+                2.0f);
 
-        ImGui::Checkbox("Earthquake", &earthquakeMode);
-        if (earthquakeMode)
-        {
-          ImGui::SliderFloat("Quake Intensity", &earthquakeIntensity, 0.05f, 2.0f);
+            drawList->AddImage(
+                (ImTextureID)(intptr_t)iconIt->second,
+                ImVec2(iconX, iconY),
+                ImVec2(iconX + iconSize, iconY + iconSize));
         }
-
-        ImGui::End();
+      }
+      else
+      {
+        glClearColor(0.08f, 0.08f, 0.12f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
       }
 
-      // Draw crosshair in the center of the screen
-      ImDrawList* drawList = ImGui::GetForegroundDrawList();
-      if (player.gamemode == Gamemode::Survival)
-        drawSurvivalHud(player, fbWidth, fbHeight);
-      ImVec2 center(fbWidth * 0.5f, fbHeight * 0.5f);
-      float crosshairSize = 10.0f;
-      float crosshairThickness = 2.0f;
-      ImU32 crosshairColor = IM_COL32(255, 255, 255, 200);
-      
-      // Horizontal line
-      drawList->AddLine(
-          ImVec2(center.x - crosshairSize, center.y),
-          ImVec2(center.x + crosshairSize, center.y),
-          crosshairColor, crosshairThickness);
-      // Vertical line
-      drawList->AddLine(
-          ImVec2(center.x, center.y - crosshairSize),
-          ImVec2(center.x, center.y + crosshairSize),
-          crosshairColor, crosshairThickness);
-
-      // Draw selected block icon in top-right corner
-      uint8_t currentBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
-      auto iconIt = g_blockIcons.find(currentBlockId);
-      if (iconIt != g_blockIcons.end())
+      switch (currentState)
       {
-          float iconSize = 128.0f;
-          float padding = 20.0f;
-          float iconX = fbWidth - iconSize - padding;
-          float iconY = padding;
-          
-          // Draw background box
-          float bgPadding = 8.0f;
-          drawList->AddRectFilled(
-              ImVec2(iconX - bgPadding, iconY - bgPadding),
-              ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
-              IM_COL32(0, 0, 0, 150),
-              8.0f  // rounded corners
-          );
-          drawList->AddRect(
-              ImVec2(iconX - bgPadding, iconY - bgPadding),
-              ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
-              IM_COL32(255, 255, 255, 100),
-              8.0f,
-              0,
-              2.0f
-          );
-          
-          // Draw the block icon
-          drawList->AddImage(
-              (ImTextureID)(intptr_t)iconIt->second,
-              ImVec2(iconX, iconY),
-              ImVec2(iconX + iconSize, iconY + iconSize)
-          );
+      case GameState::MainMenu:
+      {
+        auto result = drawMainMenu(fbWidth, fbHeight);
+        if (result.shouldQuit)
+          glfwSetWindowShouldClose(window, true);
+        else if (result.nextState != GameState::MainMenu)
+        {
+          if (result.nextState == GameState::Settings)
+            settingsReturnState = GameState::MainMenu;
+          currentState = result.nextState;
+        }
+        break;
+      }
+      case GameState::WorldSelect:
+      {
+        auto result = drawWorldSelect(fbWidth, fbHeight);
+        if (result.nextState == GameState::Playing && !result.selectedWorld.empty())
+        {
+          initWorld(result.selectedWorld);
+        }
+        else if (result.nextState != GameState::WorldSelect)
+        {
+          currentState = result.nextState;
+        }
+        break;
+      }
+      case GameState::Paused:
+      {
+        auto result = drawPauseMenu(fbWidth, fbHeight);
+        if (result.nextState == GameState::MainMenu)
+        {
+          shutdownWorld();
+          currentState = GameState::MainMenu;
+        }
+        else if (result.nextState == GameState::Settings)
+        {
+          settingsReturnState = GameState::Paused;
+          currentState = GameState::Settings;
+        }
+        else if (result.nextState == GameState::Playing)
+        {
+          currentState = GameState::Playing;
+          mouseLocked = true;
+          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+          firstMouse = true;
+        }
+        break;
+      }
+      case GameState::Settings:
+      {
+        auto result = drawSettings(fbWidth, fbHeight, settingsReturnState);
+        if (result.nextState != GameState::Settings)
+        {
+          currentState = result.nextState;
+          if (result.nextState == GameState::Playing)
+          {
+            mouseLocked = true;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            firstMouse = true;
+          }
+        }
+        break;
+      }
+      case GameState::Playing:
+        break;
       }
 
       ImGui::Render();
@@ -1085,40 +1239,13 @@ int main()
       glfwSwapBuffers(window);
 
       if (targetFps < 1000)
-      {
         limitFPS(targetFps);
-      }
 
       glfwPollEvents();
     }
 
-    jobSystem.stop();
-    std::cout << "Job system stopped" << std::endl;
+    shutdownWorld();
 
-    PlayerData playerToSave;
-    playerToSave.version = 2;
-    playerToSave.x = player.position.x;
-    playerToSave.y = player.position.y;
-    playerToSave.z = player.position.z;
-    playerToSave.yaw = player.yaw;
-    playerToSave.pitch = player.pitch;
-    playerToSave.timeOfDay = worldTime;
-    playerToSave.health = player.health;
-    playerToSave.hunger = player.hunger;
-    playerToSave.gamemode = static_cast<int32_t>(player.gamemode);
-    regionManager.savePlayerData(playerToSave);
-    std::cout << "Player position saved" << std::endl;
-
-    for (auto &pair : chunkManager.chunks)
-    {
-      Chunk* chunk = pair.second.get();
-      regionManager.saveChunkData(chunk->position.x, chunk->position.y, chunk->position.z, chunk->blocks);
-    }
-    regionManager.flush();
-    std::cout << "World saved" << std::endl;
-
-    chunkManager.chunks.clear();
-    
     glDeleteVertexArrays(1, &selectionVAO);
     glDeleteBuffers(1, &selectionVBO);
     glDeleteBuffers(1, &selectionEBO);

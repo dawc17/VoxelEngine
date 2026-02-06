@@ -1,5 +1,6 @@
 set(SOURCES
     main.cpp
+    MainMenu.cpp
     MainGlobals.cpp
     SurvivalSystem.cpp
     VBO.cpp

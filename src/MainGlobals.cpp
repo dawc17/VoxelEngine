@@ -12,6 +12,7 @@
 #include "BlockTypes.h"
 #include "Camera.h"
 #include "CoordUtils.h"
+#include "GameState.h"
 #include "Player.h"
 #include "Raycast.h"
 #include "ShaderClass.h"
@@ -30,13 +31,20 @@ const float MAX_RAYCAST_DISTANCE = 8.0f;
 
 float fps = 0.0f;
 float cameraSpeed = 5.5f;
-int targetFps = 144;
+int targetFps = 60;
 
-bool mouseLocked = true;
+bool mouseLocked = false;
 bool firstMouse = true;
 double lastMouseX = SCREEN_WIDTH / 2.0;
 double lastMouseY = SCREEN_HEIGHT / 2.0;
 bool showDebugMenu = true;
+
+GameState currentState = GameState::MainMenu;
+GameState settingsReturnState = GameState::MainMenu;
+std::string currentWorldName;
+float fov = 70.0f;
+float mouseSensitivity = 0.1f;
+bool wireframeMode = false;
 
 bool drunkMode = false;
 float drunkIntensity = 1.0f;
@@ -267,10 +275,6 @@ void processInput(GLFWwindow* window, Player& player, float dt)
     mouseLocked = true;
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     firstMouse = true;
-  }
-  else if (!chatOpen && glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-  {
-    glfwSetWindowShouldClose(window, true);
   }
 
   static bool tPressed = false;

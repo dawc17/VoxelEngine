@@ -12,6 +12,7 @@
 #include "ChunkManager.h"
 #include "WaterSimulator.h"
 #include "ParticleSystem.h"
+#include "GameState.h"
 
 extern const int SCREEN_WIDTH;
 extern const int SCREEN_HEIGHT;
@@ -26,6 +27,13 @@ extern bool firstMouse;
 extern double lastMouseX;
 extern double lastMouseY;
 extern bool showDebugMenu;
+
+extern GameState currentState;
+extern GameState settingsReturnState;
+extern std::string currentWorldName;
+extern float fov;
+extern float mouseSensitivity;
+extern bool wireframeMode;
 
 extern bool drunkMode;
 extern float drunkIntensity;
