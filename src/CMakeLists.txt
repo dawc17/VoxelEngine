@@ -3,6 +3,7 @@ set(SOURCES
     MainMenu.cpp
     MainGlobals.cpp
     SurvivalSystem.cpp
+    Inventory.cpp
     VBO.cpp
     VAO.cpp
     EBO.cpp

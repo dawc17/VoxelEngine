@@ -79,8 +79,7 @@ ChunkManager* g_chunkManager = nullptr;
 WaterSimulator* g_waterSimulator = nullptr;
 ParticleSystem* g_particleSystem = nullptr;
 
-const std::vector<uint8_t> PLACEABLE_BLOCKS = {1, 2, 3, 4, 5, 6, 7, 8};
-int selectedBlockIndex = 2;
+bool inventoryOpen = false;
 
 std::unordered_map<uint8_t, GLuint> g_blockIcons;
 
@@ -237,6 +236,26 @@ void executeCommand(const std::string& input, Player& player)
       player.health = 20.0f;
       player.hunger = 20.0f;
       player.isDead = false;
+
+      bool hotbarEmpty = true;
+      for (int i = 0; i < HOTBAR_SLOTS; i++)
+      {
+        if (!player.inventory.hotbar(i).isEmpty())
+        {
+          hotbarEmpty = false;
+          break;
+        }
+      }
+      if (hotbarEmpty)
+      {
+        const uint8_t defaultBlocks[] = {1, 2, 3, 4, 5, 6, 7, 8};
+        for (int i = 0; i < 8; i++)
+        {
+          player.inventory.hotbar(i).blockId = defaultBlocks[i];
+          player.inventory.hotbar(i).count = 64;
+        }
+      }
+
       pushChatLine("gamemode creative");
       return;
     }
@@ -298,9 +317,50 @@ void processInput(GLFWwindow* window, Player& player, float dt)
   if (chatOpen)
     return;
 
+  static bool ePressed = false;
+  if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+  {
+    if (!ePressed)
+    {
+      inventoryOpen = !inventoryOpen;
+      if (inventoryOpen)
+      {
+        mouseLocked = false;
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+      }
+      else
+      {
+        if (!player.inventory.heldItem.isEmpty())
+        {
+          player.inventory.addItem(player.inventory.heldItem.blockId, player.inventory.heldItem.count);
+          player.inventory.heldItem.clear();
+        }
+        mouseLocked = true;
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        firstMouse = true;
+      }
+      ePressed = true;
+    }
+  }
+  else
+  {
+    ePressed = false;
+  }
+
+  if (inventoryOpen)
+    return;
+
   if (player.isDead)
     return;
 
+  for (int i = 0; i < 9; i++)
+  {
+    if (glfwGetKey(window, GLFW_KEY_1 + i) == GLFW_PRESS)
+    {
+      player.inventory.selectedHotbar = i;
+      break;
+    }
+  }
 
   static bool uKeyPressed = false;
   if (glfwGetKey(window, GLFW_KEY_U) == GLFW_PRESS)
@@ -464,6 +524,10 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
   }
   else if (button == GLFW_MOUSE_BUTTON_RIGHT)
   {
+    const ItemStack& selected = g_player->inventory.selectedItem();
+    if (selected.isEmpty())
+      return;
+
     glm::ivec3 placePos = hit->blockPos + hit->normal;
 
     AABB playerAABB = g_player->getAABB();
@@ -473,32 +537,31 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
       return;
 
     uint8_t oldBlock = getBlockAtWorld(placePos.x, placePos.y, placePos.z, *g_chunkManager);
-    uint8_t blockToPlace = PLACEABLE_BLOCKS[selectedBlockIndex];
+    uint8_t blockToPlace = selected.blockId;
     setBlockAtWorld(placePos.x, placePos.y, placePos.z, blockToPlace, *g_chunkManager);
 
+    if (g_player->gamemode == Gamemode::Survival)
+      g_player->inventory.removeFromSelected(1);
+
     if (g_waterSimulator)
-    {
       g_waterSimulator->onBlockChanged(placePos.x, placePos.y, placePos.z, oldBlock, blockToPlace);
-    }
   }
 }
 
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-  ImGuiIO& io = ImGui::GetIO();
-  if (io.WantCaptureMouse)
-    return;
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse)
+        return;
 
-  if (!mouseLocked)
-    return;
+    if (!mouseLocked)
+        return;
 
-  int numBlocks = static_cast<int>(PLACEABLE_BLOCKS.size());
-  if (yoffset > 0)
-  {
-    selectedBlockIndex = (selectedBlockIndex + 1) % numBlocks;
-  }
-  else if (yoffset < 0)
-  {
-    selectedBlockIndex = (selectedBlockIndex - 1 + numBlocks) % numBlocks;
-  }
+    if (!g_player)
+        return;
+
+    if (yoffset > 0)
+        g_player->inventory.selectedHotbar = (g_player->inventory.selectedHotbar + 1) % HOTBAR_SLOTS;
+    else if (yoffset < 0)
+        g_player->inventory.selectedHotbar = (g_player->inventory.selectedHotbar - 1 + HOTBAR_SLOTS) % HOTBAR_SLOTS;
 }

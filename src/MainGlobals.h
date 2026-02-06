@@ -54,6 +54,8 @@ extern bool chatFocusNext;
 extern char chatInput[256];
 extern std::vector<std::string> chatLog;
 
+extern bool inventoryOpen;
+
 extern bool enableCaustics;
 extern bool isUnderwater;
 extern const int SEA_LEVEL;
@@ -68,8 +70,6 @@ extern ChunkManager* g_chunkManager;
 extern WaterSimulator* g_waterSimulator;
 extern ParticleSystem* g_particleSystem;
 
-extern const std::vector<uint8_t> PLACEABLE_BLOCKS;
-extern int selectedBlockIndex;
 extern std::unordered_map<uint8_t, GLuint> g_blockIcons;
 
 void limitFPS(int targetFPS);

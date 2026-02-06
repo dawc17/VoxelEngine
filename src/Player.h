@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
+#include "Inventory.h"
+
 struct ChunkManager;
 
 // Minecraft-style player dimensions
@@ -57,6 +59,8 @@ struct Player
   glm::ivec3 breakingBlockPos;
   uint8_t breakingBlockId;
   float breakProgress;
+
+  Inventory inventory;
 
   Player();
 

@@ -25,6 +25,7 @@
 #include "ParticleSystem.h"
 #include "MainGlobals.h"
 #include "SurvivalSystem.h"
+#include "Inventory.h"
 #include "GameState.h"
 #include "MainMenu.h"
 #include <memory>
@@ -366,6 +367,25 @@ int main(int argc, char* argv[])
         player.noclip = false;
       }
 
+      std::string invPath = worldPath + "/inventory.dat";
+      if (!player.inventory.loadFromFile(invPath))
+      {
+        for (auto& s : player.inventory.slots)
+          s.clear();
+        player.inventory.selectedHotbar = 0;
+        player.inventory.heldItem.clear();
+
+        if (player.gamemode == Gamemode::Creative)
+        {
+          const uint8_t defaultBlocks[] = {1, 2, 3, 4, 5, 6, 7, 8};
+          for (int i = 0; i < 8; i++)
+          {
+            player.inventory.hotbar(i).blockId = defaultBlocks[i];
+            player.inventory.hotbar(i).count = 64;
+          }
+        }
+      }
+
       mouseLocked = true;
       glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
       firstMouse = true;
@@ -399,6 +419,10 @@ int main(int argc, char* argv[])
             chunk->position.x, chunk->position.y, chunk->position.z, chunk->blocks);
       }
       regionManager->flush();
+
+      player.inventory.heldItem.clear();
+      player.inventory.saveToFile("saves/" + currentWorldName + "/inventory.dat");
+      inventoryOpen = false;
 
       chunkManager->chunks.clear();
 
@@ -440,34 +464,49 @@ int main(int argc, char* argv[])
 
       if (escJustPressed && !chatOpen)
       {
-        switch (currentState)
+        if (inventoryOpen)
         {
-        case GameState::Playing:
-          currentState = GameState::Paused;
-          mouseLocked = false;
-          glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-          break;
-        case GameState::Paused:
-          currentState = GameState::Playing;
+          if (!player.inventory.heldItem.isEmpty())
+          {
+            player.inventory.addItem(player.inventory.heldItem.blockId, player.inventory.heldItem.count);
+            player.inventory.heldItem.clear();
+          }
+          inventoryOpen = false;
           mouseLocked = true;
           glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
           firstMouse = true;
-          break;
-        case GameState::WorldSelect:
-          currentState = GameState::MainMenu;
-          break;
-        case GameState::Settings:
-          currentState = settingsReturnState;
-          if (settingsReturnState == GameState::Playing)
+        }
+        else
+        {
+          switch (currentState)
           {
+          case GameState::Playing:
+            currentState = GameState::Paused;
+            mouseLocked = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            break;
+          case GameState::Paused:
+            currentState = GameState::Playing;
             mouseLocked = true;
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             firstMouse = true;
+            break;
+          case GameState::WorldSelect:
+            currentState = GameState::MainMenu;
+            break;
+          case GameState::Settings:
+            currentState = settingsReturnState;
+            if (settingsReturnState == GameState::Playing)
+            {
+              mouseLocked = true;
+              glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+              firstMouse = true;
+            }
+            break;
+          case GameState::MainMenu:
+            glfwSetWindowShouldClose(window, true);
+            break;
           }
-          break;
-        case GameState::MainMenu:
-          glfwSetWindowShouldClose(window, true);
-          break;
         }
       }
 
@@ -843,6 +882,7 @@ int main(int argc, char* argv[])
                 if (player.breakProgress >= 1.0f)
                 {
                   setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *chunkManager);
+                  player.inventory.addItem(player.breakingBlockId, 1);
 
                   if (g_waterSimulator)
                     g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, player.breakingBlockId, 0);
@@ -1022,9 +1062,14 @@ int main(int argc, char* argv[])
               ImGui::Separator();
 
               const char* blockNames[] = {"Air", "Dirt", "Grass", "Stone", "Sand", "Oak Log", "Oak Leaves", "Glass", "Oak Planks", "Water"};
-              uint8_t selectedBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
-              ImGui::Text("Selected: %s (ID: %d)", blockNames[selectedBlockId], selectedBlockId);
-              ImGui::Text("Scroll wheel to change block");
+              const ItemStack& heldBlock = player.inventory.selectedItem();
+              if (!heldBlock.isEmpty() && heldBlock.blockId < 10)
+                ImGui::Text("Holding: %s x%d", blockNames[heldBlock.blockId], heldBlock.count);
+              else if (!heldBlock.isEmpty())
+                ImGui::Text("Holding: Block %d x%d", heldBlock.blockId, heldBlock.count);
+              else
+                ImGui::Text("Holding: Empty");
+              ImGui::Text("Slot: %d/9", player.inventory.selectedHotbar + 1);
 
               ImGui::Separator();
               ImGui::Text("LMB: Break block");
@@ -1121,50 +1166,33 @@ int main(int argc, char* argv[])
           ImGui::End();
         }
 
-        ImDrawList* drawList = ImGui::GetForegroundDrawList();
-        if (player.gamemode == Gamemode::Survival)
-          drawSurvivalHud(player, fbWidth, fbHeight);
-        ImVec2 center(fbWidth * 0.5f, fbHeight * 0.5f);
-        float crosshairSize = 10.0f;
-        float crosshairThickness = 2.0f;
-        ImU32 crosshairColor = IM_COL32(255, 255, 255, 200);
-
-        drawList->AddLine(
-            ImVec2(center.x - crosshairSize, center.y),
-            ImVec2(center.x + crosshairSize, center.y),
-            crosshairColor, crosshairThickness);
-        drawList->AddLine(
-            ImVec2(center.x, center.y - crosshairSize),
-            ImVec2(center.x, center.y + crosshairSize),
-            crosshairColor, crosshairThickness);
-
-        uint8_t currentBlockId = PLACEABLE_BLOCKS[selectedBlockIndex];
-        auto iconIt = g_blockIcons.find(currentBlockId);
-        if (iconIt != g_blockIcons.end())
+        if (currentState == GameState::Playing)
         {
-            float iconSize = 128.0f;
-            float padding = 20.0f;
-            float iconX = fbWidth - iconSize - padding;
-            float iconY = padding;
+          ImDrawList* drawList = ImGui::GetForegroundDrawList();
 
-            float bgPadding = 8.0f;
-            drawList->AddRectFilled(
-                ImVec2(iconX - bgPadding, iconY - bgPadding),
-                ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
-                IM_COL32(0, 0, 0, 150),
-                8.0f);
-            drawList->AddRect(
-                ImVec2(iconX - bgPadding, iconY - bgPadding),
-                ImVec2(iconX + iconSize + bgPadding, iconY + iconSize + bgPadding),
-                IM_COL32(255, 255, 255, 100),
-                8.0f,
-                0,
-                2.0f);
+          if (player.gamemode == Gamemode::Survival)
+            drawSurvivalHud(player, fbWidth, fbHeight);
 
-            drawList->AddImage(
-                (ImTextureID)(intptr_t)iconIt->second,
-                ImVec2(iconX, iconY),
-                ImVec2(iconX + iconSize, iconY + iconSize));
+          if (!inventoryOpen)
+          {
+            ImVec2 center(fbWidth * 0.5f, fbHeight * 0.5f);
+            float crosshairSize = 10.0f;
+            float crosshairThickness = 2.0f;
+            ImU32 crosshairColor = IM_COL32(255, 255, 255, 200);
+
+            drawList->AddLine(
+                ImVec2(center.x - crosshairSize, center.y),
+                ImVec2(center.x + crosshairSize, center.y),
+                crosshairColor, crosshairThickness);
+            drawList->AddLine(
+                ImVec2(center.x, center.y - crosshairSize),
+                ImVec2(center.x, center.y + crosshairSize),
+                crosshairColor, crosshairThickness);
+          }
+
+          drawHotbar(player.inventory, fbWidth, fbHeight);
+          if (inventoryOpen)
+            drawInventoryScreen(player.inventory, fbWidth, fbHeight);
         }
       }
       else
