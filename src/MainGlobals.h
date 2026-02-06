@@ -27,6 +27,7 @@ extern bool firstMouse;
 extern double lastMouseX;
 extern double lastMouseY;
 extern bool showDebugMenu;
+extern bool debugEnabled;
 
 extern GameState currentState;
 extern GameState settingsReturnState;

@@ -37,7 +37,8 @@ bool mouseLocked = false;
 bool firstMouse = true;
 double lastMouseX = SCREEN_WIDTH / 2.0;
 double lastMouseY = SCREEN_HEIGHT / 2.0;
-bool showDebugMenu = true;
+bool showDebugMenu = false;
+bool debugEnabled = false;
 
 GameState currentState = GameState::MainMenu;
 GameState settingsReturnState = GameState::MainMenu;
@@ -325,7 +326,7 @@ void processInput(GLFWwindow* window, Player& player, float dt)
   }
 
   static bool tabPressed = false;
-  if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS)
+  if (debugEnabled && glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS)
   {
     if (!tabPressed)
     {

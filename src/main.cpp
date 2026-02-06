@@ -47,13 +47,22 @@
 #include <unordered_map>
 
 
-int main()
+int main(int argc, char* argv[])
 {
   try
   {
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
+
+    for (int i = 1; i < argc; i++)
+    {
+      if (std::string(argv[i]) == "--debug")
+      {
+        debugEnabled = true;
+        showDebugMenu = true;
+      }
+    }
 
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
