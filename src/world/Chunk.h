@@ -7,7 +7,6 @@ using BlockID = uint8_t;
 constexpr int CHUNK_SIZE = 16;
 constexpr int CHUNK_VOLUME = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
-// Skylight levels (Minecraft uses 0-15, we use 0-15 too)
 constexpr uint8_t MAX_SKY_LIGHT = 15;
 
 struct Chunk
