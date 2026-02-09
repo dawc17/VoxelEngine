@@ -2,7 +2,6 @@
 #include <array>
 #include <cmath>
 
-// Lightweight Perlin 3D implementation with reseeding support.
 class Perlin3D
 {
 public:
@@ -17,7 +16,7 @@ public:
       x ^= x << 13; x ^= x >> 17; x ^= x << 5;
       perm[i] = static_cast<uint8_t>(x & 255u);
     }
-    // Fisher-Yates shuffle for better distribution
+    // fisher-yates shuffle
     for (int i = 255; i > 0; --i)
     {
       x ^= x << 13; x ^= x >> 17; x ^= x << 5;
@@ -141,15 +140,13 @@ float caveDensity(int wx, int wy, int wz, int terrainHeight, uint32_t seed, cons
   float sy = static_cast<float>(wy);
   float sz = static_cast<float>(wz);
 
-  // Don't carve caves too close to surface or below minimum
   if (wy < cfg.minCaveHeight) return -1.0f;
   if (wy > terrainHeight - cfg.surfaceMargin) return -1.0f;
 
-  // === CHEESE CAVES (large open caverns) ===
-  // Use 3D noise - carve where noise value is below threshold
+  //  chez
   float cheeseNoise = noise.shape.fbm(
     sx * cfg.cheeseFrequency,
-    sy * cfg.cheeseFrequency * 0.8f,  // Slightly squashed vertically for wider caves
+    sy * cfg.cheeseFrequency * 0.8f,  
     sz * cfg.cheeseFrequency,
     cfg.cheeseOctaves,
     cfg.cheeseGain,
@@ -158,7 +155,7 @@ float caveDensity(int wx, int wy, int wz, int terrainHeight, uint32_t seed, cons
   
   bool isCheeseCave = cheeseNoise < cfg.cheeseThreshold;
   
-  // === SPAGHETTI TUNNELS (connecting passages) ===
+  // spaget
   float yStretched = sy * cfg.spaghettiYStretch;
   
   float spaghetti1 = noise.detail.noise(
@@ -173,27 +170,23 @@ float caveDensity(int wx, int wy, int wz, int terrainHeight, uint32_t seed, cons
     sz * cfg.spaghettiFrequency + 500.0f
   );
   
-  // Tunnel where both are near zero
   bool isSpaghettiCave = (std::abs(spaghetti1) < cfg.spaghettiThreshold) && 
                          (std::abs(spaghetti2) < cfg.spaghettiThreshold);
-  
-  // Combine both cave types
+
   bool isCave = isCheeseCave || isSpaghettiCave;
   
   if (!isCave) return -1.0f;
   
-  // Smooth transition near surface margin
   float distToSurface = static_cast<float>(terrainHeight - cfg.surfaceMargin - wy);
   if (distToSurface < 5.0f && distToSurface > 0.0f) {
     float fade = distToSurface / 5.0f;
-    // Reduce cave probability near surface
     float fadeNoise = noise.detail.noise(sx * 0.1f, sy * 0.1f, sz * 0.1f);
     if (fadeNoise > fade * 2.0f - 1.0f) {
-      return -1.0f;  // No cave
+      return -1.0f;  
     }
   }
 
-  return 1.0f; // Positive = carve
+  return 1.0f; 
 }
 
 bool caveVegetationMask(int wx, int wy, int wz, uint32_t seed, const CaveConfig& cfg)
@@ -214,7 +207,6 @@ void applyCavesToBlocks(BlockID* blocks, const glm::ivec3& chunkPos, uint32_t wo
   {
     for (int x = 0; x < CHUNK_SIZE; ++x)
     {
-      // Get terrain height for this column
       int terrainHeight = terrainHeights ? terrainHeights[z * CHUNK_SIZE + x] : 60;
       
       for (int y = 0; y < CHUNK_SIZE; ++y)

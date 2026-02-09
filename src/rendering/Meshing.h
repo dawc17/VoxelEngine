@@ -14,7 +14,6 @@ struct Vertex
   float faceShade;
 };
 
-// Face direction indices for lighting (matches DIRS array order)
 enum FaceDir {
   DIR_POS_X = 0,
   DIR_NEG_X = 1,

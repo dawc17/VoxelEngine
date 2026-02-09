@@ -88,7 +88,6 @@ int main(int argc, char* argv[])
     glEnable(GL_DEPTH_TEST);
 
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    // Ensure a valid viewport before the first resize event fires.
     int fbWidth = 0, fbHeight = 0;
     glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
     glViewport(0, 0, fbWidth, fbHeight);
@@ -107,7 +106,6 @@ int main(int argc, char* argv[])
 
     stbi_set_flip_vertically_on_load(false);
 
-    // Load atlas and convert to 2D texture array (each tile becomes a layer)
     unsigned int textureArray;
     glGenTextures(1, &textureArray);
     glActiveTexture(GL_TEXTURE0);
@@ -118,7 +116,6 @@ int main(int argc, char* argv[])
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    // Enable anisotropic filtering
     GLfloat maxAnisotropy = 0.0f;
     glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &maxAnisotropy);
     glTexParameterf(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_ANISOTROPY, maxAnisotropy);
@@ -129,9 +126,9 @@ int main(int argc, char* argv[])
     unsigned char *data =
         stbi_load(texturePath.c_str(), &width, &height, &nrChannels, 0);
 
-    const int TILE_SIZE = 16;  // Each tile is 16x16 pixels
-    const int TILES_X = 32;     // 512 / 16 = 32 tiles wide
-    const int TILES_Y = 32;     // 512 / 16 = 32 tiles tall
+    const int TILE_SIZE = 16;
+    const int TILES_X = 32;
+    const int TILES_Y = 32;
     const int NUM_TILES = TILES_X * TILES_Y;
 
     if (data)
@@ -139,15 +136,13 @@ int main(int argc, char* argv[])
       GLenum internalFormat = (nrChannels == 4) ? GL_RGBA8 : GL_RGB8;
       GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
       
-      // Allocate storage for texture array
       glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, internalFormat, 
                    TILE_SIZE, TILE_SIZE, NUM_TILES, 0, 
                    format, GL_UNSIGNED_BYTE, nullptr);
       
-      // Copy each tile from the atlas into its own layer
       std::vector<unsigned char> tileData(TILE_SIZE * TILE_SIZE * nrChannels);
       int tileSizeBytes = TILE_SIZE * nrChannels;
-      int atlasRowBytes = width * nrChannels;  // Full atlas row in bytes
+      int atlasRowBytes = width * nrChannels;
 
       for (int ty = 0; ty < TILES_Y; ty++)
       {
@@ -155,7 +150,6 @@ int main(int argc, char* argv[])
         {
           int tileIndex = ty * TILES_X + tx;
           
-          // Starting pixel of this tile in the atlas
           unsigned char *tileStart = data + (ty * TILE_SIZE) * atlasRowBytes + tx * tileSizeBytes;
           for (int row = 0; row < TILE_SIZE; row++)
           {
@@ -164,7 +158,6 @@ int main(int argc, char* argv[])
                        tileData.begin() + row * tileSizeBytes);
           }
           
-          // Upload tile to its layer
           glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 
                           0, 0, tileIndex,
                           TILE_SIZE, TILE_SIZE, 1,
@@ -178,17 +171,14 @@ int main(int argc, char* argv[])
     {
       std::cerr << "Failed to load texture at " << texturePath << ": "
                 << stbi_failure_reason() << std::endl;
-      // fallback magenta texture
       unsigned char fallback[] = {255, 0, 255, 255};
       glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 1, 1, 1, 0, 
                    GL_RGBA, GL_UNSIGNED_BYTE, fallback);
     }
     stbi_image_free(data);
 
-    // Initialize block type registry
     initBlockTypes();
 
-    // Load HUD block icons
     std::string hudIconPath = resolveTexturePath("assets/textures/hud_blocks");
     loadBlockIcons(hudIconPath);
     loadItemModels();
@@ -235,21 +225,15 @@ int main(int argc, char* argv[])
     GLint waterAmbientLightLoc = glGetUniformLocation(waterShader.ID, "ambientLight");
     GLint waterEnableCausticsLoc = glGetUniformLocation(waterShader.ID, "enableCaustics");
 
-    // Wireframe cube vertices (slightly larger than 1x1x1 to avoid z-fighting)
-    const float s = 1.002f;  // Slight scale to avoid z-fighting
-    const float o = -0.001f; // Offset
+    const float s = 1.002f;
+    const float o = -0.001f;
     float cubeVertices[] = {
-        // Front face
         o, o, s+o,  s+o, o, s+o,  s+o, s+o, s+o,  o, s+o, s+o,
-        // Back face  
         o, o, o,  s+o, o, o,  s+o, s+o, o,  o, s+o, o,
     };
     unsigned int cubeIndices[] = {
-        // Front face lines
         0, 1, 1, 2, 2, 3, 3, 0,
-        // Back face lines
         4, 5, 5, 6, 6, 7, 7, 4,
-        // Connecting lines
         0, 4, 1, 5, 2, 6, 3, 7
     };
 
@@ -299,7 +283,6 @@ int main(int argc, char* argv[])
     (void)io;
     ImGui::StyleColorsDark();
     
-    // Set our mouse callback BEFORE ImGui init so ImGui can chain to it
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetScrollCallback(window, scrollCallback);
     

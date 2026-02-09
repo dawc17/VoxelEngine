@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
-// Atlas configuration
+
 constexpr int ATLAS_TILES_X = 32;  // 512 / 16 = 32 tiles
 constexpr int ATLAS_TILES_Y = 32;
 constexpr float TILE_U = 1.0f / ATLAS_TILES_X;

@@ -53,31 +53,23 @@ std::optional<RaycastHit> raycastVoxel(
     float maxDistance,
     ChunkManager& chunkManager)
 {
-  // DDA (Digital Differential Analyzer) voxel traversal
-  // Based on "A Fast Voxel Traversal Algorithm for Ray Tracing" by Amanatides & Woo
-
   glm::vec3 dir = glm::normalize(direction);
 
-  // Current voxel position (integer)
   glm::ivec3 voxel(
       static_cast<int>(std::floor(origin.x)),
       static_cast<int>(std::floor(origin.y)),
       static_cast<int>(std::floor(origin.z)));
 
-  // Direction to step in each axis (+1 or -1)
   glm::ivec3 step(
       (dir.x >= 0) ? 1 : -1,
       (dir.y >= 0) ? 1 : -1,
       (dir.z >= 0) ? 1 : -1);
 
-  // How far along the ray we must move for each component to cross a voxel boundary
-  // (in units of t)
   glm::vec3 tDelta(
       (dir.x != 0.0f) ? std::abs(1.0f / dir.x) : 1e30f,
       (dir.y != 0.0f) ? std::abs(1.0f / dir.y) : 1e30f,
       (dir.z != 0.0f) ? std::abs(1.0f / dir.z) : 1e30f);
 
-  // Distance to the next voxel boundary for each axis
   glm::vec3 tMax;
   if (dir.x >= 0)
     tMax.x = ((voxel.x + 1) - origin.x) / dir.x;
@@ -109,7 +101,6 @@ std::optional<RaycastHit> raycastVoxel(
       return hit;
     }
 
-    // Step to next voxel
     if (tMax.x < tMax.y && tMax.x < tMax.z)
     {
       voxel.x += step.x;

@@ -19,9 +19,8 @@ void initBlockTypes()
         }
     }
 
-    // Block 0 is air - leave as default
+    // Block 0 is air 
 
-    // Block 1: Dirt (same texture on all sides)
     g_blockTypes[1].solid = true;
     g_blockTypes[1].transparent = false;
     for (int i = 0; i < 6; i++)
