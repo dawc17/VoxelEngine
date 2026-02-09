@@ -11,6 +11,7 @@
 #include "../../libs/imgui/imgui.h"
 #include "../utils/BlockTypes.h"
 #include "../rendering/Camera.h"
+#include "../rendering/ToolModelGenerator.h"
 #include "../utils/CoordUtils.h"
 #include "GameState.h"
 #include "../gameplay/Player.h"
@@ -526,6 +527,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
   {
     const ItemStack& selected = g_player->inventory.selectedItem();
     if (selected.isEmpty())
+      return;
+    if (isToolItem(selected.blockId))
       return;
 
     glm::ivec3 placePos = hit->blockPos + hit->normal;
