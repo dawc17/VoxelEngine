@@ -21,6 +21,9 @@
 #include "../utils/BlockTypes.h"
 #include "../utils/CoordUtils.h"
 
+#include "../world/Biome.h"
+#include "../world/TerrainGenerator.h"
+
 #include "../gameplay/Raycast.h"
 #include "../gameplay/Player.h"
 #include "../gameplay/SurvivalSystem.h"
@@ -583,7 +586,15 @@ int main(int argc, char* argv[])
                         skyLightVal = static_cast<float>(c->skyLight[blockIndex(local.x, local.y, local.z)]) / static_cast<float>(MAX_SKY_LIGHT);
                       }
                     }
-                    g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, skyLightVal, 15);
+                    glm::vec4 particleTint(1.0f);
+                    if (g_blockTypes[player.breakingBlockId].faceTint[0])
+                    {
+                      BiomeID biome = getBiomeAt(hit->blockPos.x, hit->blockPos.z);
+                      bool isLeaf = g_blockTypes[player.breakingBlockId].transparent && g_blockTypes[player.breakingBlockId].solid;
+                      glm::vec3 t = isLeaf ? getBiomeFoliageTint(biome) : getBiomeGrassTint(biome);
+                      particleTint = glm::vec4(t, 1.0f);
+                    }
+                    g_particleSystem->spawnBlockBreakParticles(blockCenter, tileIndex, skyLightVal, 15, particleTint);
                   }
 
                   player.isBreaking = false;

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <glm/glm.hpp>
 
 enum class BiomeID : uint8_t
 {
@@ -28,3 +29,5 @@ struct BiomeDefinition
 
 const BiomeDefinition& getBiomeDefinition(BiomeID biome);
 BiomeID pickBiomeFromClimate(float temperature, float humidity);
+glm::vec3 getBiomeGrassTint(BiomeID biome);
+glm::vec3 getBiomeFoliageTint(BiomeID biome);

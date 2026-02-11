@@ -16,7 +16,6 @@ uniform vec3 skyColor;
 uniform vec3 fogColor;
 uniform float fogDensity;
 uniform float ambientLight;
-uniform bool useBiomeDebugTint;
 
 void main()
 {
@@ -30,11 +29,9 @@ void main()
     float totalLight = max(skyLightContribution, ambientLight);
     float finalLight = totalLight * FaceShade;
     
-    vec3 litColor = texColor.rgb * finalLight;
-    if (useBiomeDebugTint)
-    {
-        litColor *= BiomeTint;
-    }
+    float tintMask = step(0.998, texColor.a);
+    vec3 tint = mix(vec3(1.0), BiomeTint, tintMask);
+    vec3 litColor = texColor.rgb * tint * finalLight;
     
     float dist = length(WorldPos - cameraPos);
     float fogFactor = 1.0 - exp(-dist * fogDensity);
@@ -46,5 +43,5 @@ void main()
     
     vec3 finalColor = mix(litColor, fogColor, fogFactor);
     
-    FragColor = vec4(finalColor, texColor.a);
+    FragColor = vec4(finalColor, 1.0);
 }

@@ -14,6 +14,8 @@
 #include "../rendering/ParticleSystem.h"
 #include "GameState.h"
 
+class Shader;
+
 extern const int SCREEN_WIDTH;
 extern const int SCREEN_HEIGHT;
 extern const float MAX_RAYCAST_DISTANCE;
@@ -86,6 +88,6 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 std::string resolveTexturePath(const std::string& relativePath);
 GLuint loadHUDIcon(const std::string& path, bool useNearest = false);
-void loadBlockIcons(const std::string& basePath);
+void generateBlockIcons(GLuint textureArray, Shader* itemModelShader);
 void unloadBlockIcons();
 void executeCommand(const std::string& input, Player& player);

@@ -183,20 +183,6 @@ void drawDebugUI(
 
     ImGui::Begin("Fun Bullshit", nullptr, debugFlags);
 
-    if (ImGui::Button("Randomize Block Textures"))
-    {
-        randomizeBlockTextures();
-        for (auto& pair : chunkManager->chunks)
-            pair.second->dirtyMesh = true;
-    }
-
-    if (ImGui::Button("Reset Block Textures"))
-    {
-        resetBlockTextures();
-        for (auto& pair : chunkManager->chunks)
-            pair.second->dirtyMesh = true;
-    }
-
     ImGui::Separator();
     ImGui::Text("VISUAL CHAOS");
 

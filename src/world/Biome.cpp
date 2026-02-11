@@ -22,7 +22,7 @@ namespace
 
     const BiomeDefinition TUNDRA{
         BiomeID::Tundra,
-        2,
+        18,
         1,
         TreeType::Spruce,
         0.95f,
@@ -69,4 +69,28 @@ BiomeID pickBiomeFromClimate(float temperature, float humidity)
     }
 
     return BiomeID::Plains;
+}
+
+glm::vec3 getBiomeGrassTint(BiomeID biome)
+{
+    switch (biome)
+    {
+        case BiomeID::Desert: return glm::vec3(0.75f, 0.80f, 0.40f);
+        case BiomeID::Forest: return glm::vec3(0.47f, 0.74f, 0.32f);
+        case BiomeID::Tundra: return glm::vec3(0.55f, 0.70f, 0.55f);
+        case BiomeID::Plains: return glm::vec3(0.58f, 0.82f, 0.38f);
+        default: return glm::vec3(0.55f, 0.78f, 0.35f);
+    }
+}
+
+glm::vec3 getBiomeFoliageTint(BiomeID biome)
+{
+    switch (biome)
+    {
+        case BiomeID::Desert: return glm::vec3(0.68f, 0.72f, 0.36f);
+        case BiomeID::Forest: return glm::vec3(0.38f, 0.62f, 0.24f);
+        case BiomeID::Tundra: return glm::vec3(0.42f, 0.56f, 0.42f);
+        case BiomeID::Plains: return glm::vec3(0.48f, 0.72f, 0.30f);
+        default: return glm::vec3(0.45f, 0.66f, 0.28f);
+    }
 }

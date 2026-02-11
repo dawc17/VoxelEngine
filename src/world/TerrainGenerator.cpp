@@ -21,9 +21,12 @@ constexpr uint8_t BLOCK_DIRT = 1;
 constexpr uint8_t BLOCK_GRASS = 2;
 constexpr uint8_t BLOCK_STONE = 3;
 constexpr uint8_t BLOCK_SAND = 4;
-constexpr uint8_t BLOCK_LOG = 5;
-constexpr uint8_t BLOCK_LEAVES = 6;
+constexpr uint8_t BLOCK_OAK_LOG = 5;
+constexpr uint8_t BLOCK_OAK_LEAVES = 6;
 constexpr uint8_t BLOCK_WATER = 9;
+constexpr uint8_t BLOCK_SNOW_GRASS = 18;
+constexpr uint8_t BLOCK_SPRUCE_LOG = 19;
+constexpr uint8_t BLOCK_SPRUCE_LEAVES = 21;
 
 constexpr int SEA_LEVEL = 116;
 
@@ -236,6 +239,14 @@ void generateTerrain(BlockID* blocks, int cx, int cy, int cz)
             if (terrainHeight <= SEA_LEVEL + 2)
                 continue;
 
+            uint8_t logBlock = BLOCK_OAK_LOG;
+            uint8_t leafBlock = BLOCK_OAK_LEAVES;
+            if (biome.treeType == TreeType::Spruce)
+            {
+                logBlock = BLOCK_SPRUCE_LOG;
+                leafBlock = BLOCK_SPRUCE_LEAVES;
+            }
+
             int treeBaseY = terrainHeight + 1;
             int trunkHeight = TREE_TRUNK_HEIGHT;
             if (biome.treeType == TreeType::Spruce)
@@ -248,7 +259,7 @@ void generateTerrain(BlockID* blocks, int cx, int cy, int cz)
                 int localX = x;
                 int localY = treeBaseY + ty - worldOffsetY;
                 int localZ = z;
-                setBlockIfInChunk(blocks, localX, localY, localZ, BLOCK_LOG, true);
+                setBlockIfInChunk(blocks, localX, localY, localZ, logBlock, true);
             }
 
             int leafCenterY = treeBaseY + trunkHeight - 1;
@@ -268,7 +279,7 @@ void generateTerrain(BlockID* blocks, int cx, int cy, int cz)
                         int localX = x + lx;
                         int localY = leafCenterY + ly - worldOffsetY;
                         int localZ = z + lz;
-                        setBlockIfInChunk(blocks, localX, localY, localZ, BLOCK_LEAVES);
+                        setBlockIfInChunk(blocks, localX, localY, localZ, leafBlock);
                     }
                 }
             }

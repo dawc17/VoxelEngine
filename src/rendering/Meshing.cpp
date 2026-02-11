@@ -25,18 +25,6 @@ static const uint32_t FACE_INDICES[6] = {
     0, 1, 2,
     0, 2, 3};
 
-static glm::vec3 getBiomeDebugTint(int worldX, int worldZ)
-{
-    BiomeID biome = getBiomeAt(worldX, worldZ);
-    switch (biome)
-    {
-        case BiomeID::Desert: return glm::vec3(1.00f, 0.88f, 0.52f);
-        case BiomeID::Forest: return glm::vec3(0.55f, 1.00f, 0.55f);
-        case BiomeID::Tundra: return glm::vec3(0.72f, 0.84f, 1.00f);
-        case BiomeID::Plains: return glm::vec3(1.00f, 0.78f, 0.78f);
-        default: return glm::vec3(1.0f);
-    }
-}
 
 static float getFluidHeight(BlockGetter getBlock, int cornerX, int cornerY, int cornerZ)
 {
@@ -358,9 +346,17 @@ static void buildGreedyMesh(
             int blockX = blockWorldPos.x;
             int blockY = blockWorldPos.y;
             int blockZ = blockWorldPos.z;
-            glm::vec3 biomeTint = getBiomeDebugTint(
-                chunkWorldOrigin.x + blockX,
-                chunkWorldOrigin.z + blockZ);
+            glm::vec3 biomeTint(1.0f);
+            if (g_blockTypes[type].faceTint[dir])
+            {
+                BiomeID biome = getBiomeAt(
+                    chunkWorldOrigin.x + blockX,
+                    chunkWorldOrigin.z + blockZ);
+                bool isLeaf = g_blockTypes[type].transparent && g_blockTypes[type].solid;
+                biomeTint = isLeaf
+                    ? getBiomeFoliageTint(biome)
+                    : getBiomeGrassTint(biome);
+            }
 
             for (int vIdx = 0; vIdx < 4; vIdx++)
             {
