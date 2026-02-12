@@ -7,4 +7,4 @@ CompileFlags:
     - "-I../../libs/imgui/backends"
     - "-I../../build/_deps/glfw-src/include"
     - "-std=c++17"
-
+    - "-Ibuild/generated"
