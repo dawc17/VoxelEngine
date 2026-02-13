@@ -1,4 +1,5 @@
 #include "MainGlobals.h"
+#include "../audio/AudioEngine.h"
 
 #include <chrono>
 #include <filesystem>
@@ -91,6 +92,7 @@ Player* g_player = nullptr;
 ChunkManager* g_chunkManager = nullptr;
 WaterSimulator* g_waterSimulator = nullptr;
 ParticleSystem* g_particleSystem = nullptr;
+AudioEngine* g_audioEngine = nullptr;
 
 bool inventoryOpen = false;
 
@@ -546,6 +548,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
     {
       setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *g_chunkManager);
 
+      if (g_audioEngine)
+        g_audioEngine->playBlockBreak(oldBlock, glm::vec3(hit->blockPos) + glm::vec3(0.5f));
+
       if (g_waterSimulator)
         g_waterSimulator->onBlockChanged(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, oldBlock, 0);
 
@@ -610,6 +615,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 
     if (g_waterSimulator)
       g_waterSimulator->onBlockChanged(placePos.x, placePos.y, placePos.z, oldBlock, blockToPlace);
+
+    if (g_audioEngine)
+      g_audioEngine->playBlockPlace(blockToPlace, glm::vec3(placePos) + glm::vec3(0.5f));
   }
 }
 

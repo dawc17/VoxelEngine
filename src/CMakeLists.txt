@@ -29,6 +29,7 @@ set(SOURCES
     core/WorldSession.cpp
     core/Renderer.cpp
     rendering/Frustum.cpp
+    audio/AudioEngine.cpp
 )
 
 include(${CMAKE_SOURCE_DIR}/cmake/embed_resources.cmake)
@@ -194,7 +195,7 @@ endif()
 target_link_libraries(VoxelEngine PRIVATE glm::glm)
 
 if (WIN32)
-    target_link_libraries(VoxelEngine PRIVATE glad ${GLFW_TARGET} imgui opengl32 zlibstatic)
+    target_link_libraries(VoxelEngine PRIVATE glad ${GLFW_TARGET} imgui opengl32 zlibstatic ole32 avrt)
     target_link_libraries(imgui PRIVATE ${GLFW_TARGET})
 else()
     target_link_libraries(VoxelEngine PRIVATE glad ${GLFW_TARGET} GL imgui zlibstatic)
