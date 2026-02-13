@@ -45,6 +45,8 @@ Player::Player()
     , breakProgress(0.0f)
     , isSwinging(false) 
     , swingProgress(0.0f)
+    , isPlacing(false)
+    , placeProgress(0.0f)
 {
 }
 

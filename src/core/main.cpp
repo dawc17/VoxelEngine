@@ -276,6 +276,17 @@ int main(int argc, char* argv[])
             }
           }
 
+          constexpr float PLACE_DURATION = 0.20f;
+          if (player.isPlacing)
+          {
+            player.placeProgress += deltaTime / PLACE_DURATION;
+            if (player.placeProgress >= 1.0f)
+            {
+              player.placeProgress = 0.0f;
+              player.isPlacing = false;
+            }
+          }
+
           if (autoTimeProgression)
           {
             worldTime += deltaTime / dayLength;

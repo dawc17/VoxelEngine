@@ -602,8 +602,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
     uint8_t blockToPlace = selected.blockId;
     setBlockAtWorld(placePos.x, placePos.y, placePos.z, blockToPlace, *g_chunkManager);
 
-    g_player->isSwinging = true;
-    g_player->swingProgress = 0.0f;
+    g_player->isPlacing = true;
+    g_player->placeProgress = 0.0f;
 
     if (g_player->gamemode == Gamemode::Survival)
       g_player->inventory.removeFromSelected(1);

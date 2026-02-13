@@ -61,7 +61,9 @@ struct Player
 
   bool isSwinging;
   float swingProgress;
-
+  bool isPlacing;
+  float placeProgress;
+  
   Inventory inventory;
 
   Player();
