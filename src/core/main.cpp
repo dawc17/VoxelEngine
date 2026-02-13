@@ -253,6 +253,29 @@ int main(int argc, char* argv[])
             player.update(deltaTime, *chunkManager);
           }
 
+          const bool holdingMineButton =
+            glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+          const bool loopMineSwing =
+            (player.gamemode == Gamemode::Survival) && player.isBreaking && holdingMineButton;
+
+          constexpr float SWING_DURATION = 0.22f;
+          if (loopMineSwing)
+          {
+            player.isSwinging = true;
+            player.swingProgress += deltaTime / SWING_DURATION;
+            if (player.swingProgress >= 1.0f)
+              player.swingProgress -= 1.0f;
+          }
+          else if (player.isSwinging)
+          {
+            player.swingProgress += deltaTime / SWING_DURATION;
+            if (player.swingProgress >= 1.0f)
+            {
+              player.swingProgress = 0.0f;
+              player.isSwinging = false;
+            }
+          }
+
           if (autoTimeProgression)
           {
             worldTime += deltaTime / dayLength;

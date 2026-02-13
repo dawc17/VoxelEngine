@@ -539,6 +539,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
     if (oldBlock == 0)
       return;
 
+    g_player->isSwinging = true;
+    g_player->swingProgress = 0.0f;
+
     if (g_player->gamemode == Gamemode::Creative)
     {
       setBlockAtWorld(hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, 0, *g_chunkManager);
@@ -598,6 +601,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
     uint8_t oldBlock = getBlockAtWorld(placePos.x, placePos.y, placePos.z, *g_chunkManager);
     uint8_t blockToPlace = selected.blockId;
     setBlockAtWorld(placePos.x, placePos.y, placePos.z, blockToPlace, *g_chunkManager);
+
+    g_player->isSwinging = true;
+    g_player->swingProgress = 0.0f;
 
     if (g_player->gamemode == Gamemode::Survival)
       g_player->inventory.removeFromSelected(1);

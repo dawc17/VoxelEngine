@@ -575,6 +575,16 @@ void Renderer::renderHeldItem(const FrameParams& fp, const Player& player)
         handModel = glm::translate(handModel,
             glm::vec3(-0.5f, -0.5f, -0.03125f));
 
+        float swingT = player.isSwinging ? player.swingProgress : 0.0f;
+        float swingWave = sin(swingT * 3.14159265f);
+        float swingBack = sin(swingT * 3.14159265f * 0.5f);
+
+        if (player.isSwinging)
+        {
+            handModel = glm::translate(handModel, glm::vec3(-0.08f * swingWave, -0.12f * swingWave, 0.06f * swingWave));
+            handModel = glm::rotate(handModel, glm::radians(-70.0f * swingWave + 8.0f * swingBack), glm::vec3(0.0f, 0.0f, 1.0f));
+        }
+            
         glm::mat4 handMVP = handProj * handModel;
         glUniformMatrix4fv(toolTransformLoc, 1, GL_FALSE,
             glm::value_ptr(handMVP));

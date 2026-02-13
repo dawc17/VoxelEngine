@@ -43,6 +43,8 @@ Player::Player()
     , breakingBlockPos(0)
     , breakingBlockId(0)
     , breakProgress(0.0f)
+    , isSwinging(false) 
+    , swingProgress(0.0f)
 {
 }
 

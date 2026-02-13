@@ -59,6 +59,9 @@ struct Player
   uint8_t breakingBlockId;
   float breakProgress;
 
+  bool isSwinging;
+  float swingProgress;
+
   Inventory inventory;
 
   Player();
