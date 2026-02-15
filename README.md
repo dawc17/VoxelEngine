@@ -1,5 +1,9 @@
 # daw's Voxel Engine
 
+![Hackatime Badge](https://hackatime-badge.hackclub.com/U0A759TPU76/VoxelEngine)
+![Cpp Badge](https://img.shields.io/badge/C%2B%2B-00599C?style=flat&logo=c%2B%2B&logoColor=white)
+![Release badge](https://img.shields.io/github/v/release/dawc17/VoxelEngine)
+
 welcome to my small minecraft clone (maybe something more in the future) made in C++ with OpenGL!
 
 one day a few years ago i had this very specific itch that i never quite got to scratching, so recently i decided it was finally time. this is the result!
@@ -11,7 +15,6 @@ one day a few years ago i had this very specific itch that i never quite got to 
 - **procedural terrain**: fbm‑style terrain with stone/dirt/grass/sand strata, sea level water fill, and tree decorator.
 - **procedural caves**: minecraft‑inspired caves (cheese + spaghetti) carved underground.
 - **greedy meshing**: merges adjacent faces with the same texture to reduce draw calls.
-- **texture array pipeline**: block textures are loaded from individual files in `assets/textures/` into a `GL_TEXTURE_2D_ARRAY` with mipmaps + anisotropic filtering.
 - **biome tinting**: grass/leaves tint is applied dynamically in shaders, with per-pixel masking so only the intended parts are tinted.
 - **water system**: source + flowing levels with edge search, falling water, and optional caustics.
 - **particles**: instanced quads for block break particles.
@@ -20,6 +23,7 @@ one day a few years ago i had this very specific itch that i never quite got to 
 - **player controller**: aabb collision, gravity, jumping, noclip.
 - **block interaction**: raycast selection with wireframe highlight, lmb break / rmb place.
 - **day/night cycle**: dynamic sky, fog, and ambient lighting.
+- **embedded assets**: textures and shaders are embedded into the executable via cmake.
 
 ## prerequisites
 
