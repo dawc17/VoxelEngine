@@ -50,6 +50,25 @@ embed_asset(embed_stone_pickaxe_png       "${_TEX}/tools/stone_pickaxe.png")
 embed_asset(embed_gold_pickaxe_png       "${_TEX}/tools/gold_pickaxe.png")
 embed_asset(embed_iron_pickaxe_png       "${_TEX}/tools/iron_pickaxe.png")
 
+embed_asset(embed_diamond_axe_png       "${_TEX}/tools/diamond_axe.png")
+embed_asset(embed_wood_axe_png       "${_TEX}/tools/wood_axe.png")
+embed_asset(embed_stone_axe_png       "${_TEX}/tools/stone_axe.png")
+embed_asset(embed_gold_axe_png       "${_TEX}/tools/gold_axe.png")
+embed_asset(embed_iron_axe_png       "${_TEX}/tools/iron_axe.png")
+
+embed_asset(embed_diamond_shovel_png       "${_TEX}/tools/diamond_shovel.png")
+embed_asset(embed_wood_shovel_png       "${_TEX}/tools/wood_shovel.png")
+embed_asset(embed_stone_shovel_png       "${_TEX}/tools/stone_shovel.png")
+embed_asset(embed_gold_shovel_png       "${_TEX}/tools/gold_shovel.png")
+embed_asset(embed_iron_shovel_png       "${_TEX}/tools/iron_shovel.png")
+
+# weapons
+embed_asset(embed_diamond_sword_png       "${_TEX}/weapons/diamond_sword.png")
+embed_asset(embed_wood_sword_png       "${_TEX}/weapons/wood_sword.png")
+embed_asset(embed_stone_sword_png       "${_TEX}/weapons/stone_sword.png")
+embed_asset(embed_gold_sword_png       "${_TEX}/weapons/gold_sword.png")
+embed_asset(embed_iron_sword_png       "${_TEX}/weapons/iron_sword.png")
+
 
 # blocks
 embed_asset(embed_dirt_png                  "${_TEX}/dirt.png")

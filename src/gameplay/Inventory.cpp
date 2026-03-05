@@ -30,6 +30,21 @@ const std::vector<CreativeItem>& getCreativeItems()
         {TOOL_STONE_PICKAXE, "Stone Pickaxe"},
         {TOOL_GOLD_PICKAXE, "Gold Pickaxe"},
         {TOOL_IRON_PICKAXE, "Iron Pickaxe"},
+        {TOOL_DIAMOND_AXE, "Diamond Axe"},
+        {TOOL_WOOD_AXE, "Wood Axe"},
+        {TOOL_STONE_AXE, "Stone Axe"},
+        {TOOL_GOLD_AXE, "Gold Axe"},
+        {TOOL_IRON_AXE, "Iron Axe"},
+        {TOOL_DIAMOND_SHOVEL, "Diamond Shovel"},
+        {TOOL_WOOD_SHOVEL, "Wood Shovel"},
+        {TOOL_STONE_SHOVEL, "Stone Shovel"},
+        {TOOL_GOLD_SHOVEL, "Gold Shovel"},
+        {TOOL_IRON_SHOVEL, "Iron Shovel"},
+        {TOOL_DIAMOND_SWORD, "Diamond Sword"},
+        {TOOL_WOOD_SWORD, "Wood Sword"},
+        {TOOL_STONE_SWORD, "Stone Sword"},
+        {TOOL_GOLD_SWORD, "Gold Sword"},
+        {TOOL_IRON_SWORD, "Iron Sword"},
     };
     return items;
 }

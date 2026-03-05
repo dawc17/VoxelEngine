@@ -219,6 +219,14 @@ ToolType getBlockPreferredTool(uint8_t blockId)
         case 3: //stone
         case 22: //cobblestone
             return ToolType::Pickaxe;
+        case 4: //log
+        case 5: //planks
+            return ToolType::Axe;
+        case 1: //dirt
+        case 2: //grass
+        case 6: //sand
+        case 21: //snow
+            return ToolType::Shovel;
         default:
             return ToolType::None;
     }
@@ -230,13 +238,36 @@ float getToolSpeedMultiplier(uint8_t toolItemId, uint8_t blockId)
     if (preferred == ToolType::None)
         return 1.0f;
 
-    switch (toolItemId) 
-    {
-        case TOOL_WOOD_PICKAXE:     return 1.0f;
-        case TOOL_STONE_PICKAXE:    return 1.5f;
-        case TOOL_IRON_PICKAXE:     return 1.9f;
-        case TOOL_GOLD_PICKAXE:     return 2.2f;
-        case TOOL_DIAMOND_PICKAXE:  return 3.0f;
-        default: return 0.3f;
+    if (preferred == ToolType::Pickaxe) {
+        switch (toolItemId) 
+        {
+            case TOOL_WOOD_PICKAXE:     return 1.0f;
+            case TOOL_STONE_PICKAXE:    return 1.5f;
+            case TOOL_IRON_PICKAXE:     return 1.9f;
+            case TOOL_GOLD_PICKAXE:     return 2.2f;
+            case TOOL_DIAMOND_PICKAXE:  return 3.0f;
+            default: return 0.3f;
+        }
+    } else if (preferred == ToolType::Axe) {
+        switch (toolItemId) 
+        {
+            case TOOL_WOOD_AXE:     return 1.0f;
+            case TOOL_STONE_AXE:    return 1.5f;
+            case TOOL_IRON_AXE:     return 1.9f;
+            case TOOL_GOLD_AXE:     return 2.2f;
+            case TOOL_DIAMOND_AXE:  return 3.0f;
+            default: return 0.3f;
+        }
+    } else if (preferred == ToolType::Shovel) {
+        switch (toolItemId) 
+        {
+            case TOOL_WOOD_SHOVEL:     return 1.0f;
+            case TOOL_STONE_SHOVEL:    return 1.5f;
+            case TOOL_IRON_SHOVEL:     return 1.9f;
+            case TOOL_GOLD_SHOVEL:     return 2.2f;
+            case TOOL_DIAMOND_SHOVEL:  return 3.0f;
+            default: return 0.3f;
+        }
     }
+    return 0.3f;
 }
