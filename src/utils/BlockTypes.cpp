@@ -1,4 +1,5 @@
 #include "BlockTypes.h"
+#include "../rendering/ToolModelGenerator.h"
 
 std::array<BlockType, 256> g_blockTypes;
 std::array<BlockType, 256> g_defaultBlockTypes;
@@ -209,4 +210,64 @@ float getBlockHardness(uint8_t blockId)
         case 22: return 2.0f;
         default: return 1.0f;
     }
+}
+
+ToolType getBlockPreferredTool(uint8_t blockId)
+{
+    switch (blockId)
+    {
+        case 3: //stone
+        case 22: //cobblestone
+            return ToolType::Pickaxe;
+        case 4: //log
+        case 5: //planks
+            return ToolType::Axe;
+        case 1: //dirt
+        case 2: //grass
+        case 6: //sand
+        case 21: //snow
+            return ToolType::Shovel;
+        default:
+            return ToolType::None;
+    }
+}
+
+float getToolSpeedMultiplier(uint8_t toolItemId, uint8_t blockId)
+{
+    ToolType preferred = getBlockPreferredTool(blockId);
+    if (preferred == ToolType::None)
+        return 1.0f;
+
+    if (preferred == ToolType::Pickaxe) {
+        switch (toolItemId) 
+        {
+            case TOOL_WOOD_PICKAXE:     return 1.0f;
+            case TOOL_STONE_PICKAXE:    return 1.5f;
+            case TOOL_IRON_PICKAXE:     return 1.9f;
+            case TOOL_GOLD_PICKAXE:     return 2.2f;
+            case TOOL_DIAMOND_PICKAXE:  return 3.0f;
+            default: return 0.3f;
+        }
+    } else if (preferred == ToolType::Axe) {
+        switch (toolItemId) 
+        {
+            case TOOL_WOOD_AXE:     return 1.0f;
+            case TOOL_STONE_AXE:    return 1.5f;
+            case TOOL_IRON_AXE:     return 1.9f;
+            case TOOL_GOLD_AXE:     return 2.2f;
+            case TOOL_DIAMOND_AXE:  return 3.0f;
+            default: return 0.3f;
+        }
+    } else if (preferred == ToolType::Shovel) {
+        switch (toolItemId) 
+        {
+            case TOOL_WOOD_SHOVEL:     return 1.0f;
+            case TOOL_STONE_SHOVEL:    return 1.5f;
+            case TOOL_IRON_SHOVEL:     return 1.9f;
+            case TOOL_GOLD_SHOVEL:     return 2.2f;
+            case TOOL_DIAMOND_SHOVEL:  return 3.0f;
+            default: return 0.3f;
+        }
+    }
+    return 0.3f;
 }

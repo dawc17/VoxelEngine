@@ -26,6 +26,9 @@ enum BlockTex : int
 };
 
 float getBlockHardness(uint8_t blockId);
+enum class ToolType { None, Pickaxe, Axe, Shovel, Sword };
+ToolType getBlockPreferredTool(uint8_t blockId);
+float getToolSpeedMultiplier(uint8_t toolItemId, uint8_t blockId);
 
 struct BlockType
 {

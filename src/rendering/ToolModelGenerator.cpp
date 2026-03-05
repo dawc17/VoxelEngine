@@ -188,6 +188,24 @@ void loadToolModels()
         {TOOL_STONE_PICKAXE, embed_stone_pickaxe_png_data, embed_stone_pickaxe_png_size},
         {TOOL_GOLD_PICKAXE, embed_gold_pickaxe_png_data, embed_gold_pickaxe_png_size},
         {TOOL_IRON_PICKAXE, embed_iron_pickaxe_png_data, embed_iron_pickaxe_png_size},
+
+        {TOOL_DIAMOND_AXE, embed_diamond_axe_png_data, embed_diamond_axe_png_size},
+        {TOOL_WOOD_AXE, embed_wood_axe_png_data, embed_wood_axe_png_size},
+        {TOOL_STONE_AXE, embed_stone_axe_png_data, embed_stone_axe_png_size},
+        {TOOL_GOLD_AXE, embed_gold_axe_png_data, embed_gold_axe_png_size},
+        {TOOL_IRON_AXE, embed_iron_axe_png_data, embed_iron_axe_png_size},
+
+        {TOOL_DIAMOND_SHOVEL, embed_diamond_shovel_png_data, embed_diamond_shovel_png_size},
+        {TOOL_WOOD_SHOVEL, embed_wood_shovel_png_data, embed_wood_shovel_png_size},
+        {TOOL_STONE_SHOVEL, embed_stone_shovel_png_data, embed_stone_shovel_png_size},
+        {TOOL_GOLD_SHOVEL, embed_gold_shovel_png_data, embed_gold_shovel_png_size},
+        {TOOL_IRON_SHOVEL, embed_iron_shovel_png_data, embed_iron_shovel_png_size},
+
+        {TOOL_DIAMOND_SWORD, embed_diamond_sword_png_data, embed_diamond_sword_png_size},
+        {TOOL_WOOD_SWORD, embed_wood_sword_png_data, embed_wood_sword_png_size},
+        {TOOL_STONE_SWORD, embed_stone_sword_png_data, embed_stone_sword_png_size},
+        {TOOL_GOLD_SWORD, embed_gold_sword_png_data, embed_gold_sword_png_size},
+        {TOOL_IRON_SWORD, embed_iron_sword_png_data, embed_iron_sword_png_size},
     };
 
     for (const auto &tool : tools)
