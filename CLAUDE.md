@@ -14,19 +14,63 @@ VoxelEngine is a Minecraft-style voxel game (~115k lines, C++17) featuring proce
 
 **Requirements:** CMake 3.14+, C++17 compiler, OpenGL 4.6 capable GPU
 
+### Linux
+
 ```bash
-# Standard build (Linux)
+# Standard build
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ./build/src/VoxelEngine
 
-# Optional: fetch GLFW automatically instead of using system package
-cmake -B build -DGLFW_FETCH=ON
+# Run tests
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc) --target voxel_tests
+cd build && ctest --output-on-failure
+# or directly:
+./build/tests/voxel_tests
+```
+
+### Windows
+
+GLFW is fetched automatically on Windows (no system package needed).
+Requires: **Visual Studio 2019+** (or any C++17-capable toolchain) and **CMake 3.14+**.
+
+**Visual Studio generator (recommended)**
+
+```bat
+:: Configure (GLFW auto-fetched; no extra flags needed)
+cmake -B build
+
+:: Build game
+cmake --build build --config Release
+
+:: Build & run tests
+cmake --build build --config Debug --target voxel_tests
+cd build
+ctest -C Debug --output-on-failure
+:: or run directly:
+.\tests\Debug\voxel_tests.exe
+```
+
+**Ninja + MSVC (faster incremental builds)**
+
+Open a *Developer Command Prompt for VS* or run `vcvarsall.bat amd64` first, then:
+
+```bat
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j %NUMBER_OF_PROCESSORS%
+.\build\src\VoxelEngine.exe
+
+:: Tests
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target voxel_tests
+cd build && ctest --output-on-failure
 ```
 
 **Output binary:**
 - Linux: `build/src/VoxelEngine`
-- Windows: `build\src\Release\VoxelEngine.exe`
+- Windows (VS): `build\src\Release\VoxelEngine.exe`
+- Windows (Ninja): `build\src\VoxelEngine.exe`
 
 **Asset embedding:** Textures, shaders, and audio are converted to C++ headers via `cmake/embed_resources.cmake` (using `xxd`). The generated header is `build/embedded_assets.h`. Never reference asset files at runtime — always use the embedded data.
 
@@ -339,12 +383,22 @@ The project uses **Google Test** (fetched via CMake `FetchContent` at configure 
 
 ### Running Tests
 
+**Linux**
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc) --target voxel_tests
 cd build && ctest --output-on-failure
 # or run the binary directly:
 ./build/tests/voxel_tests
+```
+
+**Windows (Visual Studio generator)**
+```bat
+cmake -B build
+cmake --build build --config Debug --target voxel_tests
+cd build && ctest -C Debug --output-on-failure
+:: or run directly:
+.\tests\Debug\voxel_tests.exe
 ```
 
 ### Test Files
