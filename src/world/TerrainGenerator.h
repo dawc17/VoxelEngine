@@ -6,7 +6,10 @@
 uint32_t getWorldSeed();
 void setWorldSeed(uint32_t seed);
 
-void generateTerrain(BlockID* blocks, int cx, int cy, int cz);
+// outTerrainHeights (optional): if non-null, filled with the computed terrain
+// height for each XZ column in row-major order [z * CHUNK_SIZE + x].
+// Pass the same array to applyCavesToBlocks to avoid recomputing heights.
+void generateTerrain(BlockID* blocks, int cx, int cy, int cz, int* outTerrainHeights = nullptr);
 
 BiomeID getBiomeAt(int worldX, int worldZ);
 

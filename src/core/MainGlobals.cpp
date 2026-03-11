@@ -404,7 +404,10 @@ void processInput(GLFWwindow* window, Player& player, float dt)
   }
 
   if (inventoryOpen)
+  {
+    player.applyMovement(glm::vec3(0.0f), 0.0f);
     return;
+  }
 
   if (player.isDead)
     return;
