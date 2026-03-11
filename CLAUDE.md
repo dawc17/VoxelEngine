@@ -333,11 +333,47 @@ This is a game, not a server. Fatal errors call `std::exit()` or throw and termi
 
 ---
 
-## No Test Framework
+## Test Framework
 
-There is no automated test suite. Verification is done manually:
-- Launch with `--debug` flag to enable the ImGui debug menu
+The project uses **Google Test** (fetched via CMake `FetchContent` at configure time). Tests live in `tests/` and cover pure-logic subsystems that have no OpenGL dependency.
+
+### Running Tests
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc) --target voxel_tests
+cd build && ctest --output-on-failure
+# or run the binary directly:
+./build/tests/voxel_tests
+```
+
+### Test Files
+
+| File | What it covers |
+|---|---|
+| `tests/test_coord_utils.cpp` | `worldToChunk`, `worldToLocal`, `chunkToWorld` — including negative coords and round-trip invariants |
+| `tests/test_block_types.cpp` | `initBlockTypes`, `isBlockSolid/Transparent/Liquid`, `getBlockHardness`, `getBlockPreferredTool`, `getToolSpeedMultiplier` |
+
+### What Can Be Tested (and What Cannot)
+
+**Testable without a GPU/display:**
+- Coordinate math (`CoordUtils.h` — header-only, no GL calls)
+- Block registry (`BlockTypes.cpp` — uses only TOOL_* integer constants from ToolModelGenerator.h, no GL calls)
+- Any future pure-logic utility (inventory math, raycast geometry, etc.)
+
+**Cannot be unit-tested without a context:**
+- Anything that calls OpenGL (Renderer, ChunkManager mesh uploads, VAO/VBO wrappers)
+- Audio (requires an OpenAL device)
+- The job system's worker threads (depend on ChunkManager + RegionManager state)
+
+For those, manual verification remains the approach:
+- Launch with `--debug` to enable the ImGui debug menu
 - Use `/noclip` + `/time` to explore generation artifacts
 - Check chunk loading seams visually at region boundaries (multiples of 32 chunks)
 
-When adding logic that is easily unit-testable (coordinate math, block registry lookups), consider adding assertions (`assert()`) rather than a full test framework, consistent with the existing codebase style.
+### Adding New Tests
+
+1. Create `tests/test_<module>.cpp`
+2. Add it to `add_executable(voxel_tests ...)` in `tests/CMakeLists.txt`
+3. If the module has `.cpp` files with no GL calls, add them to `voxel_testable` in `tests/CMakeLists.txt`
+4. Use `TEST()` for stateless tests; use a `::testing::Test` fixture with `SetUpTestSuite()` when global state (like `initBlockTypes()`) must be initialised once

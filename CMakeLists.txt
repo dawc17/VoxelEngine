@@ -9,3 +9,6 @@ set(GLM_BUILD_LIBRARY OFF CACHE BOOL "Use header-only GLM" FORCE)
 add_subdirectory(libs/glm-1.0.2)
 
 add_subdirectory(src)
+
+enable_testing()
+add_subdirectory(tests)
