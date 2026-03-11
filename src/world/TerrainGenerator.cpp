@@ -149,7 +149,7 @@ static void setBlockIfInChunk(BlockID* blocks, int localX, int localY, int local
     }
 }
 
-void generateTerrain(BlockID* blocks, int cx, int cy, int cz)
+void generateTerrain(BlockID* blocks, int cx, int cy, int cz, int* outTerrainHeights)
 {
     int worldOffsetX = cx * CHUNK_SIZE;
     int worldOffsetY = cy * CHUNK_SIZE;
@@ -166,6 +166,8 @@ void generateTerrain(BlockID* blocks, int cx, int cy, int cz)
             const BiomeDefinition& biome = getBiomeDefinition(biomeId);
             float terrainAmplitude = sampleTerrainAmplitude(worldX, worldZ);
             int terrainHeight = static_cast<int>(std::round(getTerrainHeight(worldX, worldZ, terrainAmplitude)));
+            if (outTerrainHeights)
+                outTerrainHeights[z * CHUNK_SIZE + x] = terrainHeight;
             uint8_t surfaceBlock = biome.surfaceBlock;
             uint8_t fillerBlock = biome.fillerBlock;
             if (terrainHeight < SEA_LEVEL)

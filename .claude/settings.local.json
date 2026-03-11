@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -20)",
+      "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -25)",
+      "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -15)"
+    ]
+  }
+}

@@ -314,29 +314,58 @@ bool WaterSimulator::tryCreateSource(int x, int y, int z)
     return false;
 }
 
-int WaterSimulator::findDistanceToHole(int x, int y, int z, int depth)
+int WaterSimulator::findDistanceToHole(int x, int y, int z, int maxDepth)
 {
-    if (depth <= 0)
-        return INT_MAX;
-    
     if (!isSolid(x, y - 1, z))
         return 0;
-    
+
+    // BFS with a flat visited grid replaces 4^maxDepth recursive branching.
+    // maxDepth is always WATER_EDGE_SEARCH_DISTANCE (4), so SIDE==9, max 81 cells.
+    const int SIDE = 2 * maxDepth + 1;
+    const int OFF  = maxDepth;
+    bool visited[81] = {};  // zero-init; safe for maxDepth <= 9
+
+    struct Entry { int x, z, dist; };
+    Entry queue[81];
+    int qHead = 0, qTail = 0;
+
+    visited[OFF * SIDE + OFF] = true;
+    queue[qTail++] = {x, z, 0};
+
     int minDist = INT_MAX;
-    
-    for (int i = 0; i < 4; i++)
+
+    while (qHead < qTail)
     {
-        int nx = x + DX[i];
-        int nz = z + DZ[i];
-        
-        if (!canFlowInto(nx, y, nz))
-            continue;
-        
-        int dist = findDistanceToHole(nx, y, nz, depth - 1);
-        if (dist != INT_MAX && dist + 1 < minDist)
-            minDist = dist + 1;
+        const Entry e = queue[qHead++];
+
+        for (int i = 0; i < 4; i++)
+        {
+            int nx = e.x + DX[i];
+            int nz = e.z + DZ[i];
+            int newDist = e.dist + 1;
+
+            int vx = nx - x + OFF;
+            int vz = nz - z + OFF;
+            if (vx < 0 || vx >= SIDE || vz < 0 || vz >= SIDE)
+                continue;
+            if (!canFlowInto(nx, y, nz))
+                continue;
+
+            if (!isSolid(nx, y - 1, nz))
+            {
+                if (newDist < minDist)
+                    minDist = newDist;
+                continue;
+            }
+
+            if (newDist < maxDepth && !visited[vx * SIDE + vz])
+            {
+                visited[vx * SIDE + vz] = true;
+                queue[qTail++] = {nx, nz, newDist};
+            }
+        }
     }
-    
+
     return minDist;
 }
 

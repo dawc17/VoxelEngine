@@ -161,7 +161,7 @@ void ChunkManager::enqueueMeshChunk(int cx, int cy, int cz)
 
   meshingChunks.insert(key);
 
-  auto job = std::make_unique<MeshChunkJob>();
+  auto job = jobSystem->acquireMeshJob();
   job->cx = cx;
   job->cy = cy;
   job->cz = cz;
@@ -312,6 +312,7 @@ void ChunkManager::update()
   for (auto& job : completedMeshes)
   {
     onMeshComplete(job.get());
+    jobSystem->releaseMeshJob(std::move(job));
   }
 
   auto completedSaves = jobSystem->pollCompletedSaves();

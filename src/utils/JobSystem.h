@@ -101,12 +101,18 @@ public:
     void enqueue(std::unique_ptr<Job> job);
     void enqueueHighPriority(std::unique_ptr<Job> job);
 
+    // Pool-based allocation for MeshChunkJob — avoids a heap alloc per job and
+    // preserves vector capacity across reuses so buildGreedyMesh never re-reserves.
+    // Both methods must be called from the main thread only.
+    std::unique_ptr<MeshChunkJob> acquireMeshJob();
+    void releaseMeshJob(std::unique_ptr<MeshChunkJob> job);
+
     std::vector<std::unique_ptr<GenerateChunkJob>> pollCompletedGenerations();
     std::vector<std::unique_ptr<MeshChunkJob>> pollCompletedMeshes();
     std::vector<std::unique_ptr<SaveChunkJob>> pollCompletedSaves();
 
-    bool hasCompletedWork() const;
-    size_t pendingJobCount() const;
+    bool hasCompletedWork();
+    size_t pendingJobCount() const;  // lock-free via atomic
 
 private:
     std::vector<std::thread> workers;
@@ -119,10 +125,19 @@ private:
     std::vector<std::unique_ptr<GenerateChunkJob>> completedGenerations;
     std::vector<std::unique_ptr<MeshChunkJob>> completedMeshes;
     std::vector<std::unique_ptr<SaveChunkJob>> completedSaves;
-    std::mutex completedMutex;
+    // One mutex per result queue so workers finishing different job types
+    // never block each other when pushing results.
+    std::mutex generationsMutex;
+    std::mutex meshesMutex;
+    std::mutex savesMutex;
+    // Atomically-tracked pending count removes the need to lock queueMutex
+    // every frame just to read the queue sizes.
+    std::atomic<size_t> pendingCount{0};
 
     RegionManager* regionManager;
     ChunkManager* chunkManager;
+
+    std::vector<std::unique_ptr<MeshChunkJob>> meshJobPool;
 
     void workerLoop();
     void processJob(std::unique_ptr<Job> job);

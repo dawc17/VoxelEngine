@@ -180,8 +180,21 @@ static void buildGreedyMesh(
 {
   outVertices.clear();
   outIndices.clear();
-  outVertices.reserve(CHUNK_VOLUME * 6 * 4);
-  outIndices.reserve(CHUNK_VOLUME * 6 * 6);
+  // Reserve a realistic starting size; when vectors are reused from the job
+  // pool their existing capacity is preserved by clear(), so this only
+  // allocates on the very first use of each vector.
+  constexpr size_t MESH_VERT_RESERVE = CHUNK_SIZE * CHUNK_SIZE * 6;  // 1536
+  constexpr size_t MESH_IDX_RESERVE  = CHUNK_SIZE * CHUNK_SIZE * 9;  // 2304
+  if (outVertices.capacity() < MESH_VERT_RESERVE)
+      outVertices.reserve(MESH_VERT_RESERVE);
+  if (outIndices.capacity() < MESH_IDX_RESERVE)
+      outIndices.reserve(MESH_IDX_RESERVE);
+
+  // Water top-face (dir==2) calls getFluidHeight for every corner of every
+  // face, but adjacent water blocks share corners. Cache the (CHUNK_SIZE+1)²
+  // corner heights for the current Y-slice to avoid redundant block reads.
+  float cornerHeightCache[CHUNK_SIZE + 1][CHUNK_SIZE + 1];
+  bool cornerCacheValid = false;
 
   for (int dir = 0; dir < 6; dir++)
   {
@@ -199,6 +212,9 @@ static void buildGreedyMesh(
 
     for (int i = 0; i < CHUNK_SIZE; i++)
     {
+      if (liquidsOnly && dir == 2)
+          cornerCacheValid = false;  // invalidate on each new Y-slice
+
       for (int j = 0; j < CHUNK_SIZE; j++)
       {
         for (int k = 0; k < CHUNK_SIZE; k++)
@@ -376,7 +392,14 @@ static void buildGreedyMesh(
                 {
                   int cornerX = blockX + static_cast<int>(originalPos.x);
                   int cornerZ = blockZ + static_cast<int>(originalPos.z);
-                  float cornerHeight = getFluidHeight(getBlock, cornerX, blockY, cornerZ);
+                  if (!cornerCacheValid)
+                  {
+                    cornerCacheValid = true;
+                    for (int cz = 0; cz <= CHUNK_SIZE; ++cz)
+                      for (int cx = 0; cx <= CHUNK_SIZE; ++cx)
+                        cornerHeightCache[cz][cx] = getFluidHeight(getBlock, cx, i, cz);
+                  }
+                  float cornerHeight = cornerHeightCache[cornerZ][cornerX];
                   finalPos.y = static_cast<float>(blockY) + cornerHeight - 0.01f;
                   vertexWaterHeight = cornerHeight;
                 }

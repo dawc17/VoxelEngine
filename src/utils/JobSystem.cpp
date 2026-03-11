@@ -47,12 +47,39 @@ void JobSystem::stop()
     workers.clear();
 }
 
+std::unique_ptr<MeshChunkJob> JobSystem::acquireMeshJob()
+{
+    if (!meshJobPool.empty())
+    {
+        auto job = std::move(meshJobPool.back());
+        meshJobPool.pop_back();
+        job->cx = job->cy = job->cz = 0;
+        job->hasNeighborPosX = job->hasNeighborNegX = false;
+        job->hasNeighborPosY = job->hasNeighborNegY = false;
+        job->hasNeighborPosZ = job->hasNeighborNegZ = false;
+        return job;
+    }
+    return std::make_unique<MeshChunkJob>();
+}
+
+void JobSystem::releaseMeshJob(std::unique_ptr<MeshChunkJob> job)
+{
+    // Clear result vectors but keep their allocated capacity so buildGreedyMesh
+    // won't re-reserve on the next use of this job.
+    job->vertices.clear();
+    job->indices.clear();
+    job->waterVertices.clear();
+    job->waterIndices.clear();
+    meshJobPool.push_back(std::move(job));
+}
+
 void JobSystem::enqueue(std::unique_ptr<Job> job)
 {
     {
         std::lock_guard<std::mutex> lock(queueMutex);
         jobQueue.push(std::move(job));
     }
+    ++pendingCount;
     condition.notify_one();
 }
 
@@ -62,12 +89,13 @@ void JobSystem::enqueueHighPriority(std::unique_ptr<Job> job)
         std::lock_guard<std::mutex> lock(queueMutex);
         highPriorityQueue.push(std::move(job));
     }
+    ++pendingCount;
     condition.notify_one();
 }
 
 std::vector<std::unique_ptr<GenerateChunkJob>> JobSystem::pollCompletedGenerations()
 {
-    std::lock_guard<std::mutex> lock(completedMutex);
+    std::lock_guard<std::mutex> lock(generationsMutex);
     std::vector<std::unique_ptr<GenerateChunkJob>> result;
     result.swap(completedGenerations);
     return result;
@@ -75,7 +103,7 @@ std::vector<std::unique_ptr<GenerateChunkJob>> JobSystem::pollCompletedGeneratio
 
 std::vector<std::unique_ptr<MeshChunkJob>> JobSystem::pollCompletedMeshes()
 {
-    std::lock_guard<std::mutex> lock(completedMutex);
+    std::lock_guard<std::mutex> lock(meshesMutex);
     std::vector<std::unique_ptr<MeshChunkJob>> result;
     result.swap(completedMeshes);
     return result;
@@ -83,22 +111,34 @@ std::vector<std::unique_ptr<MeshChunkJob>> JobSystem::pollCompletedMeshes()
 
 std::vector<std::unique_ptr<SaveChunkJob>> JobSystem::pollCompletedSaves()
 {
-    std::lock_guard<std::mutex> lock(completedMutex);
+    std::lock_guard<std::mutex> lock(savesMutex);
     std::vector<std::unique_ptr<SaveChunkJob>> result;
     result.swap(completedSaves);
     return result;
 }
 
-bool JobSystem::hasCompletedWork() const
+bool JobSystem::hasCompletedWork()
 {
-    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(completedMutex));
-    return !completedGenerations.empty() || !completedMeshes.empty() || !completedSaves.empty();
+    // Use atomic pending count as a cheap proxy: if anything completed,
+    // pendingCount < (original enqueue total). But we don't track that here.
+    // Instead take each lock briefly and check.
+    {
+        std::lock_guard<std::mutex> lock(generationsMutex);
+        if (!completedGenerations.empty()) return true;
+    }
+    {
+        std::lock_guard<std::mutex> lock(meshesMutex);
+        if (!completedMeshes.empty()) return true;
+    }
+    {
+        std::lock_guard<std::mutex> lock(savesMutex);
+        return !completedSaves.empty();
+    }
 }
 
 size_t JobSystem::pendingJobCount() const
 {
-    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(queueMutex));
-    return jobQueue.size() + highPriorityQueue.size();
+    return pendingCount.load(std::memory_order_relaxed);
 }
 
 void JobSystem::workerLoop()
@@ -143,31 +183,34 @@ void JobSystem::processJob(std::unique_ptr<Job> job)
         case JobType::Generate:
             processGenerateJob(static_cast<GenerateChunkJob*>(job.get()));
             {
-                std::lock_guard<std::mutex> lock(completedMutex);
+                std::lock_guard<std::mutex> lock(generationsMutex);
                 completedGenerations.push_back(
                     std::unique_ptr<GenerateChunkJob>(static_cast<GenerateChunkJob*>(job.release()))
                 );
             }
+            --pendingCount;
             break;
 
         case JobType::Mesh:
             processMeshJob(static_cast<MeshChunkJob*>(job.get()));
             {
-                std::lock_guard<std::mutex> lock(completedMutex);
+                std::lock_guard<std::mutex> lock(meshesMutex);
                 completedMeshes.push_back(
                     std::unique_ptr<MeshChunkJob>(static_cast<MeshChunkJob*>(job.release()))
                 );
             }
+            --pendingCount;
             break;
 
         case JobType::Save:
             processSaveJob(static_cast<SaveChunkJob*>(job.get()));
             {
-                std::lock_guard<std::mutex> lock(completedMutex);
+                std::lock_guard<std::mutex> lock(savesMutex);
                 completedSaves.push_back(
                     std::unique_ptr<SaveChunkJob>(static_cast<SaveChunkJob*>(job.release()))
                 );
             }
+            --pendingCount;
             break;
     }
 }
@@ -183,12 +226,11 @@ void JobSystem::processGenerateJob(GenerateChunkJob* job)
   }
   else
   {
-    generateTerrain(job->blocks, job->cx, job->cy, job->cz);
-    job->loadedFromDisk = false;
-
-    // Compute terrain heights for this chunk's XZ columns
+    // Pass terrainHeights directly so generateTerrain fills them as a side
+    // effect of its own loop — avoids a full duplicate noise pass.
     int terrainHeights[CHUNK_SIZE * CHUNK_SIZE];
-    getTerrainHeightsForChunk(job->cx, job->cz, terrainHeights);
+    generateTerrain(job->blocks, job->cx, job->cy, job->cz, terrainHeights);
+    job->loadedFromDisk = false;
     
     // Carve caves only on freshly generated chunks (not on loaded/saved ones)
     applyCavesToBlocks(job->blocks, glm::ivec3(job->cx, job->cy, job->cz), DEFAULT_WORLD_SEED, terrainHeights);
