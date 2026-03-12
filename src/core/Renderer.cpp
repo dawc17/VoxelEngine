@@ -70,6 +70,10 @@ void Renderer::init()
         { TEX_LEAVES_SPRUCE,     embed_leaves_spruce_png_data,     embed_leaves_spruce_png_size },
         { TEX_PLANKS_SPRUCE,     embed_planks_spruce_png_data,     embed_planks_spruce_png_size },
         { TEX_SNOW,              embed_snow_png_data,              embed_snow_png_size },
+        { TEX_COAL_ORE,          embed_coal_ore_png_data,          embed_coal_ore_png_size },
+        { TEX_IRON_ORE,          embed_iron_ore_png_data,          embed_iron_ore_png_size },
+        { TEX_GOLD_ORE,          embed_gold_ore_png_data,          embed_gold_ore_png_size },
+        { TEX_DIAMOND_ORE,       embed_diamond_ore_png_data,       embed_diamond_ore_png_size },
     };
 
     for (const auto& e : entries)

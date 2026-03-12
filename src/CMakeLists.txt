@@ -89,6 +89,12 @@ embed_asset(embed_planks_spruce_png         "${_TEX}/planks_spruce.png")
 embed_asset(embed_snow_png                  "${_TEX}/snow.png")
 embed_asset(embed_grass_side_overlay_png    "${_TEX}/grass_side_overlay.png")
 
+# ore blocks
+embed_asset(embed_coal_ore_png              "${_TEX}/coal_ore.png")
+embed_asset(embed_iron_ore_png              "${_TEX}/iron_ore.png")
+embed_asset(embed_gold_ore_png              "${_TEX}/gold_ore.png")
+embed_asset(embed_diamond_ore_png           "${_TEX}/diamond_ore.png")
+
 # misc
 embed_asset(embed_destroy_stage_0_png       "${_TEX}/destroy/destroy_stage_0.png")
 embed_asset(embed_destroy_stage_1_png       "${_TEX}/destroy/destroy_stage_1.png")

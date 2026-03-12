@@ -3,7 +3,13 @@
     "allow": [
       "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -20)",
       "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -25)",
-      "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -15)"
+      "Bash(cd F:/projects/VoxelEngine && cmake --build build --target VoxelEngine -j4 2>&1 | tail -15)",
+      "Bash(grep -r \"void processInput\" \"C:\\\\Users\\\\dawid\\\\Programming\\\\VoxelEngine\\\\src\\\\\" --include=\"*.h\" --include=\"*.cpp\")",
+      "Bash(cd \"C:\\\\Users\\\\dawid\\\\Programming\\\\VoxelEngine\" && find src -name \"*.h\" -o -name \"*.cpp\" | xargs grep -l \"processInput\\\\|drawChat\" | head -10)",
+      "Bash(cd \"C:\\\\Users\\\\dawid\\\\Programming\\\\VoxelEngine\" && find src -name \"*.h\" -o -name \"*.cpp\" | xargs grep -l \"mob\\\\|entity\\\\|Entity\\\\|Mob\" | head -20)",
+      "Bash(cd \"C:\\\\Users\\\\dawid\\\\Programming\\\\VoxelEngine\" && find src/ui -name \"*.h\" | xargs grep -l \"draw\\\\|menu\" | sort)",
+      "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\" 2>/dev/null || python3 -c \"import struct, zlib; print\\('Will use raw PNG generation'\\)\")",
+      "Bash(cd C:/Users/dawid/Programming/VoxelEngine && cmake -B build -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -5)"
     ]
   }
 }

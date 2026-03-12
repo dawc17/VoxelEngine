@@ -188,6 +188,35 @@ void initBlockTypes()
         setSideRotations(b);
     }
 
+    // Ore blocks
+    {
+        BlockType& b = g_blockTypes[23]; // Coal Ore
+        setSolidOpaque(b);
+        setAllFaces(b, TEX_COAL_ORE);
+        setSideRotations(b);
+    }
+
+    {
+        BlockType& b = g_blockTypes[24]; // Iron Ore
+        setSolidOpaque(b);
+        setAllFaces(b, TEX_IRON_ORE);
+        setSideRotations(b);
+    }
+
+    {
+        BlockType& b = g_blockTypes[25]; // Gold Ore
+        setSolidOpaque(b);
+        setAllFaces(b, TEX_GOLD_ORE);
+        setSideRotations(b);
+    }
+
+    {
+        BlockType& b = g_blockTypes[26]; // Diamond Ore
+        setSolidOpaque(b);
+        setAllFaces(b, TEX_DIAMOND_ORE);
+        setSideRotations(b);
+    }
+
     g_defaultBlockTypes = g_blockTypes;
 }
 
@@ -208,6 +237,10 @@ float getBlockHardness(uint8_t blockId)
         case 20: return 1.0f;
         case 21: return 0.2f;
         case 22: return 2.0f;
+        case 23: return 3.0f;  // coal ore
+        case 24: return 3.0f;  // iron ore
+        case 25: return 5.0f;  // gold ore
+        case 26: return 5.0f;  // diamond ore
         default: return 1.0f;
     }
 }
@@ -218,6 +251,10 @@ ToolType getBlockPreferredTool(uint8_t blockId)
     {
         case 3: //stone
         case 22: //cobblestone
+        case 23: //coal ore
+        case 24: //iron ore
+        case 25: //gold ore
+        case 26: //diamond ore
             return ToolType::Pickaxe;
         case 4: //log
         case 5: //planks

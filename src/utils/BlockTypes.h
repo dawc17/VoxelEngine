@@ -22,6 +22,10 @@ enum BlockTex : int
     TEX_LEAVES_SPRUCE,
     TEX_PLANKS_SPRUCE,
     TEX_SNOW,
+    TEX_COAL_ORE,
+    TEX_IRON_ORE,
+    TEX_GOLD_ORE,
+    TEX_DIAMOND_ORE,
     TEX_COUNT
 };
 

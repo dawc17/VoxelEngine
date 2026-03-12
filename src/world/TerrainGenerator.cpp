@@ -27,6 +27,10 @@ constexpr uint8_t BLOCK_WATER = 9;
 constexpr uint8_t BLOCK_SNOW_GRASS = 18;
 constexpr uint8_t BLOCK_SPRUCE_LOG = 19;
 constexpr uint8_t BLOCK_SPRUCE_LEAVES = 21;
+constexpr uint8_t BLOCK_COAL_ORE = 23;
+constexpr uint8_t BLOCK_IRON_ORE = 24;
+constexpr uint8_t BLOCK_GOLD_ORE = 25;
+constexpr uint8_t BLOCK_DIAMOND_ORE = 26;
 
 constexpr int SEA_LEVEL = 116;
 
@@ -146,6 +150,90 @@ static void setBlockIfInChunk(BlockID* blocks, int localX, int localY, int local
     if (overwriteSolid || blocks[idx] == BLOCK_AIR)
     {
         blocks[idx] = blockId;
+    }
+}
+
+struct OreConfig
+{
+    uint8_t blockId;
+    int maxHeight;       // world Y ceiling for this ore
+    int minHeight;       // world Y floor
+    int veinSize;        // max blocks per vein
+    int attemptsPerChunk; // generation attempts per chunk column
+};
+
+static constexpr OreConfig ORES[] = {
+    { BLOCK_COAL_ORE,    128, 5,  12, 20 },
+    { BLOCK_IRON_ORE,    80,  5,  8,  14 },
+    { BLOCK_GOLD_ORE,    40,  5,  6,  4  },
+    { BLOCK_DIAMOND_ORE, 20,  5,  5,  2  },
+};
+
+static void generateOres(BlockID* blocks, int cx, int cy, int cz)
+{
+    int worldOffsetX = cx * CHUNK_SIZE;
+    int worldOffsetY = cy * CHUNK_SIZE;
+    int worldOffsetZ = cz * CHUNK_SIZE;
+
+    for (const auto& ore : ORES)
+    {
+        // Skip if this chunk's Y range doesn't overlap the ore's range
+        if (worldOffsetY > ore.maxHeight || worldOffsetY + CHUNK_SIZE <= ore.minHeight)
+            continue;
+
+        // Deterministic seed per chunk per ore type
+        unsigned int oreSeed = static_cast<unsigned int>(TERRAIN_SEED) * 48271u
+            + static_cast<unsigned int>(cx) * 73856093u
+            + static_cast<unsigned int>(cy) * 19349663u
+            + static_cast<unsigned int>(cz) * 83492791u
+            + static_cast<unsigned int>(ore.blockId) * 31337u;
+
+        for (int attempt = 0; attempt < ore.attemptsPerChunk; attempt++)
+        {
+            // Hash to get vein center position
+            oreSeed = oreSeed * 1103515245u + 12345u;
+            int startX = static_cast<int>((oreSeed >> 16) % CHUNK_SIZE);
+            oreSeed = oreSeed * 1103515245u + 12345u;
+            int startY = static_cast<int>((oreSeed >> 16) % CHUNK_SIZE);
+            oreSeed = oreSeed * 1103515245u + 12345u;
+            int startZ = static_cast<int>((oreSeed >> 16) % CHUNK_SIZE);
+
+            int worldY = worldOffsetY + startY;
+            if (worldY < ore.minHeight || worldY > ore.maxHeight)
+                continue;
+
+            // Place a blob of ore blocks around the center
+            int placed = 0;
+            int bx = startX, by = startY, bz = startZ;
+
+            for (int i = 0; i < ore.veinSize && placed < ore.veinSize; i++)
+            {
+                if (bx >= 0 && bx < CHUNK_SIZE &&
+                    by >= 0 && by < CHUNK_SIZE &&
+                    bz >= 0 && bz < CHUNK_SIZE)
+                {
+                    int idx = blockIndex(bx, by, bz);
+                    if (blocks[idx] == BLOCK_STONE)
+                    {
+                        blocks[idx] = ore.blockId;
+                        placed++;
+                    }
+                }
+
+                // Random walk to next block in vein
+                oreSeed = oreSeed * 1103515245u + 12345u;
+                int dir = static_cast<int>((oreSeed >> 16) % 6);
+                switch (dir)
+                {
+                    case 0: bx++; break;
+                    case 1: bx--; break;
+                    case 2: by++; break;
+                    case 3: by--; break;
+                    case 4: bz++; break;
+                    case 5: bz--; break;
+                }
+            }
+        }
     }
 }
 
@@ -287,6 +375,8 @@ void generateTerrain(BlockID* blocks, int cx, int cy, int cz, int* outTerrainHei
             }
         }
     }
+
+    generateOres(blocks, cx, cy, cz);
 }
 
 BiomeID getBiomeAt(int worldX, int worldZ)
