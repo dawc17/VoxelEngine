@@ -7,6 +7,8 @@
 #include <cmath>
 
 ToolTransform g_toolTransform;
+ToolTransform g_axeTransform{0.46f, -0.23f, -0.54f, 88.0f, -128.0f, -86.0f, 0.47f};
+ToolSwingTuning g_axeSwingTuning{-0.08f, -0.12f, 0.06f, 83.0f};
 BlockTransform g_blockTransform;
 BlockSwingTuning g_blockSwingTuning;
 BlockPlaceTuning g_blockPlaceTuning;
@@ -236,6 +238,52 @@ void drawDebugUI(
             ImGui::Text("  dX:%.2f dY:%.2f dZ:%.2f  dRX:%.0f dRZ:%.0f",
                 g_blockPlaceTuning.posX, g_blockPlaceTuning.posY, g_blockPlaceTuning.posZ,
                 g_blockPlaceTuning.rotX, g_blockPlaceTuning.rotZ);
+
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Axe Transform"))
+        {
+            ImGui::Text("POSITION");
+            ImGui::SliderFloat("Pos X##axe", &g_axeTransform.posX, -1.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Pos Y##axe", &g_axeTransform.posY, -1.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Pos Z##axe", &g_axeTransform.posZ, -2.0f, 0.0f, "%.3f");
+
+            ImGui::Separator();
+            ImGui::Text("ROTATION");
+            ImGui::SliderFloat("Rot X##axe", &g_axeTransform.rotX, -180.0f, 180.0f, "%.1f");
+            ImGui::SliderFloat("Rot Y##axe", &g_axeTransform.rotY, -180.0f, 180.0f, "%.1f");
+            ImGui::SliderFloat("Rot Z##axe", &g_axeTransform.rotZ, -180.0f, 180.0f, "%.1f");
+
+            ImGui::Separator();
+            ImGui::SliderFloat("Scale##axe", &g_axeTransform.scale, 0.1f, 2.0f, "%.3f");
+
+            ImGui::Separator();
+            if (ImGui::Button("Reset##axe"))
+            {
+                g_axeTransform = {0.46f, -0.23f, -0.54f, 88.0f, -128.0f, -86.0f, 0.47f};
+            }
+            ImGui::SameLine();
+            ImGui::Text("  X:%.2f Y:%.2f Z:%.2f  rX:%.0f rY:%.0f rZ:%.0f  s:%.2f",
+                g_axeTransform.posX, g_axeTransform.posY, g_axeTransform.posZ,
+                g_axeTransform.rotX, g_axeTransform.rotY, g_axeTransform.rotZ, g_axeTransform.scale);
+
+            ImGui::Separator();
+            ImGui::Text("AXE SWING ANIMATION");
+            ImGui::SliderFloat("Swing Pos X##axe", &g_axeSwingTuning.posX, -1.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Swing Pos Y##axe", &g_axeSwingTuning.posY, -1.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Swing Pos Z##axe", &g_axeSwingTuning.posZ, -1.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Swing Rot##axe", &g_axeSwingTuning.rotAngle, -180.0f, 180.0f, "%.1f");
+
+            ImGui::Separator();
+            if (ImGui::Button("Reset Swing##axe"))
+            {
+                g_axeSwingTuning = {-0.08f, -0.12f, 0.06f, 83.0f};
+            }
+            ImGui::SameLine();
+            ImGui::Text("  dX:%.2f dY:%.2f dZ:%.2f  rot:%.0f",
+                g_axeSwingTuning.posX, g_axeSwingTuning.posY, g_axeSwingTuning.posZ,
+                g_axeSwingTuning.rotAngle);
 
             ImGui::EndTabItem();
         }

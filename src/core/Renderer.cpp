@@ -565,7 +565,8 @@ void Renderer::renderHeldItem(const FrameParams& fp, const Player& player)
         glm::mat4 handProj = glm::perspective(
             glm::radians(70.0f), fp.aspect, 0.01f, 10.0f);
 
-        ToolTransform& tt = g_toolTransform;
+        bool isAxe = (held.blockId >= TOOL_DIAMOND_AXE && held.blockId <= TOOL_IRON_AXE);
+        ToolTransform& tt = isAxe ? g_axeTransform : g_toolTransform;
         glm::mat4 handModel = glm::mat4(1.0f);
         handModel = glm::translate(handModel,
             glm::vec3(tt.posX, tt.posY, tt.posZ));
@@ -590,8 +591,16 @@ void Renderer::renderHeldItem(const FrameParams& fp, const Player& player)
 
         if (player.isSwinging)
         {
-            handModel = glm::translate(handModel, glm::vec3(-0.08f * swingWave, -0.12f * swingWave, 0.06f * swingWave));
-            handModel = glm::rotate(handModel, glm::radians(-60.0f * swingWave), glm::vec3(0.0f, 0.0f, 1.0f));
+            if (isAxe)
+            {
+                handModel = glm::translate(handModel, glm::vec3(g_axeSwingTuning.posX * swingWave, g_axeSwingTuning.posY * swingWave, g_axeSwingTuning.posZ * swingWave));
+                handModel = glm::rotate(handModel, glm::radians(g_axeSwingTuning.rotAngle * swingWave), glm::vec3(0.0f, 0.0f, 1.0f));
+            }
+            else
+            {
+                handModel = glm::translate(handModel, glm::vec3(-0.08f * swingWave, -0.12f * swingWave, 0.06f * swingWave));
+                handModel = glm::rotate(handModel, glm::radians(-60.0f * swingWave), glm::vec3(0.0f, 0.0f, 1.0f));
+            }
         }
         if (player.isPlacing)
         {

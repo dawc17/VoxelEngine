@@ -33,7 +33,15 @@ struct BlockPlaceTuning
     float rotX = -15.2f, rotZ = 0.0f;
 };
 
-extern ToolTransform g_toolTransform;
+struct ToolSwingTuning
+{
+    float posX = -0.08f, posY = -0.12f, posZ = 0.06f;
+    float rotAngle = -60.0f;
+};
+
+extern ToolTransform  g_toolTransform;
+extern ToolTransform  g_axeTransform;
+extern ToolSwingTuning g_axeSwingTuning;
 extern BlockTransform g_blockTransform;
 extern BlockSwingTuning g_blockSwingTuning;
 extern BlockPlaceTuning g_blockPlaceTuning;
