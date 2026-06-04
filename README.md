@@ -23,7 +23,7 @@ one day a few years ago i had this very specific itch that i never quite got to 
 - **player controller**: aabb collision, gravity, jumping, noclip.
 - **block interaction**: raycast selection with wireframe highlight, lmb break / rmb place.
 - **day/night cycle**: dynamic sky, fog, and ambient lighting.
-- **embedded assets**: textures and shaders are embedded into the executable via cmake.
+- **runtime textures**: textures are copied to the game `assets/` folder at build time so edits are picked up without embedding.
 
 ## prerequisites
 
@@ -59,7 +59,7 @@ If you already have GLFW installed, set `-DGLFW_FETCH=OFF` and ensure CMake can 
 ```
 
 - Release builds on Windows land at `build\src\Release\VoxelEngine.exe`; Debug builds live in `build\src\Debug\VoxelEngine.exe`.
-- Shaders and assets are copied to the build output directory at build time.
+- Textures are copied to the build output directory at build time. Shaders and audio are still embedded.
 
 ## distribution
 
@@ -110,7 +110,7 @@ the imgui debug window provides:
 
 ## troubleshooting
 
-- **texture/shader not found**: run from the repo root or `build/` so relative paths resolve; ensure `src/shaders/` and `assets/` are copied next to the executable.
+- **texture not found**: rebuild so CMake copies `assets/textures/` next to the executable, or run from the repo root.
 - **glfw link errors**: install the glfw dev package or enable `-DGLFW_FETCH=ON`.
 - **caves breaking through surface**: adjust `surfaceMargin` in `CaveGenerator.h`.
 - **performance issues**: reduce render distance or enable async loading in the debug menu.

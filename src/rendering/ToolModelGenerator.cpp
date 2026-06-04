@@ -1,11 +1,12 @@
 #include "ToolModelGenerator.h"
-#include "embedded_assets.h"
 #include "../core/MainGlobals.h"
+#include "../utils/AssetLoader.h"
 #include "../thirdparty/stb_image.h"
 #include "Meshing.h"
 #include "glm/ext/vector_float3.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
@@ -14,12 +15,16 @@
 std::unordered_map<uint8_t, ToolModel> g_toolModels;
 std::unordered_map<uint8_t, GLuint> g_toolIcons;
 
-ToolModel ToolModelGenerator::generateFromSprite(const unsigned char* pngData, unsigned int pngSize) {
+ToolModel ToolModelGenerator::generateFromTexture(const char* texturePath) {
   int width, height, channels;
-  unsigned char *data =
-      stbi_load_from_memory(pngData, static_cast<int>(pngSize), &width, &height, &channels, 4);
+  unsigned char* data = nullptr;
+  if (texturePath) {
+    std::filesystem::path runtimePath = AssetLoader::findTexture(texturePath);
+    if (!runtimePath.empty())
+      data = stbi_load(runtimePath.string().c_str(), &width, &height, &channels, 4);
+  }
   if (!data) {
-    std::cerr << "Failed to decode tool sprite from embedded data" << std::endl;
+    std::cerr << "Failed to decode tool sprite " << (texturePath ? texturePath : "<missing>") << std::endl;
     return {};
   }
 
@@ -178,46 +183,45 @@ void loadToolModels()
 {
     struct ToolDef {
         uint8_t id;
-        const unsigned char* data;
-        unsigned int size;
+        const char* texturePath;
     };
 
     ToolDef tools[] = {
-        {TOOL_DIAMOND_PICKAXE, embed_diamond_pickaxe_png_data, embed_diamond_pickaxe_png_size},
-        {TOOL_WOOD_PICKAXE, embed_wood_pickaxe_png_data, embed_wood_pickaxe_png_size},
-        {TOOL_STONE_PICKAXE, embed_stone_pickaxe_png_data, embed_stone_pickaxe_png_size},
-        {TOOL_GOLD_PICKAXE, embed_gold_pickaxe_png_data, embed_gold_pickaxe_png_size},
-        {TOOL_IRON_PICKAXE, embed_iron_pickaxe_png_data, embed_iron_pickaxe_png_size},
+        {TOOL_DIAMOND_PICKAXE, "tools/diamond_pickaxe.png"},
+        {TOOL_WOOD_PICKAXE, "tools/wood_pickaxe.png"},
+        {TOOL_STONE_PICKAXE, "tools/stone_pickaxe.png"},
+        {TOOL_GOLD_PICKAXE, "tools/gold_pickaxe.png"},
+        {TOOL_IRON_PICKAXE, "tools/iron_pickaxe.png"},
 
-        {TOOL_DIAMOND_AXE, embed_diamond_axe_png_data, embed_diamond_axe_png_size},
-        {TOOL_WOOD_AXE, embed_wood_axe_png_data, embed_wood_axe_png_size},
-        {TOOL_STONE_AXE, embed_stone_axe_png_data, embed_stone_axe_png_size},
-        {TOOL_GOLD_AXE, embed_gold_axe_png_data, embed_gold_axe_png_size},
-        {TOOL_IRON_AXE, embed_iron_axe_png_data, embed_iron_axe_png_size},
+        {TOOL_DIAMOND_AXE, "tools/diamond_axe.png"},
+        {TOOL_WOOD_AXE, "tools/wood_axe.png"},
+        {TOOL_STONE_AXE, "tools/stone_axe.png"},
+        {TOOL_GOLD_AXE, "tools/gold_axe.png"},
+        {TOOL_IRON_AXE, "tools/iron_axe.png"},
 
-        {TOOL_DIAMOND_SHOVEL, embed_diamond_shovel_png_data, embed_diamond_shovel_png_size},
-        {TOOL_WOOD_SHOVEL, embed_wood_shovel_png_data, embed_wood_shovel_png_size},
-        {TOOL_STONE_SHOVEL, embed_stone_shovel_png_data, embed_stone_shovel_png_size},
-        {TOOL_GOLD_SHOVEL, embed_gold_shovel_png_data, embed_gold_shovel_png_size},
-        {TOOL_IRON_SHOVEL, embed_iron_shovel_png_data, embed_iron_shovel_png_size},
+        {TOOL_DIAMOND_SHOVEL, "tools/diamond_shovel.png"},
+        {TOOL_WOOD_SHOVEL, "tools/wood_shovel.png"},
+        {TOOL_STONE_SHOVEL, "tools/stone_shovel.png"},
+        {TOOL_GOLD_SHOVEL, "tools/gold_shovel.png"},
+        {TOOL_IRON_SHOVEL, "tools/iron_shovel.png"},
 
-        {TOOL_DIAMOND_SWORD, embed_diamond_sword_png_data, embed_diamond_sword_png_size},
-        {TOOL_WOOD_SWORD, embed_wood_sword_png_data, embed_wood_sword_png_size},
-        {TOOL_STONE_SWORD, embed_stone_sword_png_data, embed_stone_sword_png_size},
-        {TOOL_GOLD_SWORD, embed_gold_sword_png_data, embed_gold_sword_png_size},
-        {TOOL_IRON_SWORD, embed_iron_sword_png_data, embed_iron_sword_png_size},
+        {TOOL_DIAMOND_SWORD, "weapons/diamond_sword.png"},
+        {TOOL_WOOD_SWORD, "weapons/wood_sword.png"},
+        {TOOL_STONE_SWORD, "weapons/stone_sword.png"},
+        {TOOL_GOLD_SWORD, "weapons/gold_sword.png"},
+        {TOOL_IRON_SWORD, "weapons/iron_sword.png"},
     };
 
     for (const auto &tool : tools)
     {
-        ToolModel model = ToolModelGenerator::generateFromSprite(tool.data, tool.size);
+        ToolModel model = ToolModelGenerator::generateFromTexture(tool.texturePath);
         if (model.indexCount > 0)
         {
             g_toolModels[tool.id] = model;
             std::cout << "Generated tool model for tool " << (int)tool.id << std::endl;
         }
 
-        GLuint icon = loadHUDIcon(tool.data, tool.size, true);
+        GLuint icon = loadHUDIconFromTexture(tool.texturePath, true);
         if (icon != 0)
             g_toolIcons[tool.id] = icon;
     }

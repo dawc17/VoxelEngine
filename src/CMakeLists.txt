@@ -13,6 +13,7 @@ set(SOURCES
     world/ChunkManager.cpp
     rendering/Meshing.cpp
     utils/BlockTypes.cpp
+    utils/AssetLoader.cpp
     gameplay/Raycast.cpp
     gameplay/Player.cpp
     world/RegionManager.cpp
@@ -38,68 +39,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/embed_resources.cmake)
 set(_EMBED_H "#pragma once\n\n")
 set(_EMBED_CPP "#include \"embedded_assets.h\"\n\n")
 
-set(_TEX "${CMAKE_SOURCE_DIR}/assets/textures")
 set(_SHD "${CMAKE_SOURCE_DIR}/src/shaders")
-
-# asset embedding
-
-# tools
-embed_asset(embed_diamond_pickaxe_png       "${_TEX}/tools/diamond_pickaxe.png")
-embed_asset(embed_wood_pickaxe_png       "${_TEX}/tools/wood_pickaxe.png")
-embed_asset(embed_stone_pickaxe_png       "${_TEX}/tools/stone_pickaxe.png")
-embed_asset(embed_gold_pickaxe_png       "${_TEX}/tools/gold_pickaxe.png")
-embed_asset(embed_iron_pickaxe_png       "${_TEX}/tools/iron_pickaxe.png")
-
-embed_asset(embed_diamond_axe_png       "${_TEX}/tools/diamond_axe.png")
-embed_asset(embed_wood_axe_png       "${_TEX}/tools/wood_axe.png")
-embed_asset(embed_stone_axe_png       "${_TEX}/tools/stone_axe.png")
-embed_asset(embed_gold_axe_png       "${_TEX}/tools/gold_axe.png")
-embed_asset(embed_iron_axe_png       "${_TEX}/tools/iron_axe.png")
-
-embed_asset(embed_diamond_shovel_png       "${_TEX}/tools/diamond_shovel.png")
-embed_asset(embed_wood_shovel_png       "${_TEX}/tools/wood_shovel.png")
-embed_asset(embed_stone_shovel_png       "${_TEX}/tools/stone_shovel.png")
-embed_asset(embed_gold_shovel_png       "${_TEX}/tools/gold_shovel.png")
-embed_asset(embed_iron_shovel_png       "${_TEX}/tools/iron_shovel.png")
-
-# weapons
-embed_asset(embed_diamond_sword_png       "${_TEX}/weapons/diamond_sword.png")
-embed_asset(embed_wood_sword_png       "${_TEX}/weapons/wood_sword.png")
-embed_asset(embed_stone_sword_png       "${_TEX}/weapons/stone_sword.png")
-embed_asset(embed_gold_sword_png       "${_TEX}/weapons/gold_sword.png")
-embed_asset(embed_iron_sword_png       "${_TEX}/weapons/iron_sword.png")
-
-
-# blocks
-embed_asset(embed_dirt_png                  "${_TEX}/dirt.png")
-embed_asset(embed_grass_top_png             "${_TEX}/grass_top.png")
-embed_asset(embed_grass_side_snowed_png     "${_TEX}/grass_side_snowed.png")
-embed_asset(embed_stone_png                 "${_TEX}/stone.png")
-embed_asset(embed_sand_png                  "${_TEX}/sand.png")
-embed_asset(embed_log_oak_png               "${_TEX}/log_oak.png")
-embed_asset(embed_log_oak_top_png           "${_TEX}/log_oak_top.png")
-embed_asset(embed_leaves_oak_png            "${_TEX}/leaves_oak.png")
-embed_asset(embed_glass_png                 "${_TEX}/glass.png")
-embed_asset(embed_planks_oak_png            "${_TEX}/planks_oak.png")
-embed_asset(embed_cobblestone_png           "${_TEX}/cobblestone.png")
-embed_asset(embed_log_spruce_png            "${_TEX}/log_spruce.png")
-embed_asset(embed_log_spruce_top_png        "${_TEX}/log_spruce_top.png")
-embed_asset(embed_leaves_spruce_png         "${_TEX}/leaves_spruce.png")
-embed_asset(embed_planks_spruce_png         "${_TEX}/planks_spruce.png")
-embed_asset(embed_snow_png                  "${_TEX}/snow.png")
-embed_asset(embed_grass_side_overlay_png    "${_TEX}/grass_side_overlay.png")
-
-# misc
-embed_asset(embed_destroy_stage_0_png       "${_TEX}/destroy/destroy_stage_0.png")
-embed_asset(embed_destroy_stage_1_png       "${_TEX}/destroy/destroy_stage_1.png")
-embed_asset(embed_destroy_stage_2_png       "${_TEX}/destroy/destroy_stage_2.png")
-embed_asset(embed_destroy_stage_3_png       "${_TEX}/destroy/destroy_stage_3.png")
-embed_asset(embed_destroy_stage_4_png       "${_TEX}/destroy/destroy_stage_4.png")
-embed_asset(embed_destroy_stage_5_png       "${_TEX}/destroy/destroy_stage_5.png")
-embed_asset(embed_destroy_stage_6_png       "${_TEX}/destroy/destroy_stage_6.png")
-embed_asset(embed_destroy_stage_7_png       "${_TEX}/destroy/destroy_stage_7.png")
-embed_asset(embed_destroy_stage_8_png       "${_TEX}/destroy/destroy_stage_8.png")
-embed_asset(embed_destroy_stage_9_png       "${_TEX}/destroy/destroy_stage_9.png")
 
 # shaders
 embed_asset(embed_default_vert              "${_SHD}/default.vert")
@@ -214,6 +154,12 @@ set(EMBED_DIR "${CMAKE_BINARY_DIR}/generated")
 embed_finalize("${EMBED_DIR}")
 
 add_executable(VoxelEngine ${SOURCES} "${EMBED_DIR}/embedded_assets.cpp")
+add_custom_command(TARGET VoxelEngine POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets/textures"
+            "$<TARGET_FILE_DIR:VoxelEngine>/assets/textures"
+    COMMENT "Copying runtime textures to game assets folder"
+)
 target_include_directories(VoxelEngine PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/core

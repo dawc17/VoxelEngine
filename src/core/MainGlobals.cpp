@@ -6,7 +6,6 @@
 #include <iostream>
 #include <sstream>
 #include <thread>
-#include "embedded_assets.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -14,6 +13,7 @@
 
 #include "../../libs/imgui/imgui.h"
 #include "../utils/BlockTypes.h"
+#include "../utils/AssetLoader.h"
 #include "../rendering/Camera.h"
 #include "../rendering/ItemModelGenerator.h"
 #include "../rendering/ToolModelGenerator.h"
@@ -124,13 +124,16 @@ void limitFPS(int targetFPS)
   lastFrameTime = FrameClock::now();
 }
 
-GLuint loadHUDIcon(const unsigned char* pngData, unsigned int pngSize, bool useNearest)
+GLuint loadHUDIconFromTexture(const std::string& texturePath, bool useNearest)
 {
-  int width, height, channels;
-  unsigned char* data = stbi_load_from_memory(pngData, static_cast<int>(pngSize), &width, &height, &channels, 4);
+  int width = 0, height = 0, channels = 0;
+  std::filesystem::path runtimePath = AssetLoader::findTexture(texturePath);
+  unsigned char* data = runtimePath.empty()
+      ? nullptr
+      : stbi_load(runtimePath.string().c_str(), &width, &height, &channels, 4);
   if (!data)
   {
-    std::cerr << "Failed to decode HUD icon from embedded data" << std::endl;
+    std::cerr << "Failed to decode HUD icon " << texturePath << std::endl;
     return 0;
   }
 

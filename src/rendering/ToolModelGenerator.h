@@ -52,8 +52,8 @@ constexpr uint8_t TOOL_IRON_SWORD = 147;
 inline bool isToolItem(uint8_t id) { return id >= TOOL_ID_START; }
 
 class ToolModelGenerator {
-    public:
-    static ToolModel generateFromSprite(const unsigned char* pngData, unsigned int pngSize);
+public:
+    static ToolModel generateFromTexture(const char* texturePath);
     static void destroyModel(ToolModel& model);
 };
 
