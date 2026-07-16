@@ -1,3 +1,5 @@
+# project no longer in active development
+
 # daw's Voxel Engine
 
 ![Hackatime Badge](https://hackatime-badge.hackclub.com/U0A759TPU76/VoxelEngine)
